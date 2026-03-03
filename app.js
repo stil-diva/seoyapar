@@ -13,6 +13,67 @@ let rawData = [];
 let headers = [];
 let analysisResults = [];
 
+// ===== API Settings Modal =====
+const apiModal = $('apiSettingsModal');
+$('apiSettingsBtn').addEventListener('click', () => {
+    $('apiUrlInput').value = getKeywordApiUrl();
+    apiModal.style.display = 'flex';
+    $('apiStatus').style.display = 'none';
+});
+$('closeApiSettings').addEventListener('click', () => { apiModal.style.display = 'none'; });
+apiModal.addEventListener('click', e => { if (e.target === apiModal) apiModal.style.display = 'none'; });
+
+$('testApiBtn').addEventListener('click', async () => {
+    const url = $('apiUrlInput').value.trim();
+    const statusEl = $('apiStatus');
+    if (!url) {
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(239,68,68,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ URL giriniz';
+        return;
+    }
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(232,116,12,0.15)';
+    statusEl.style.color = 'var(--accent-yellow)';
+    statusEl.textContent = '⏳ Test ediliyor...';
+
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'health' })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok' && data.hasCredentials) {
+            statusEl.style.background = 'rgba(16,185,129,0.15)';
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = '✅ Bağlantı başarılı! Google Keyword Planner hazır.';
+        } else if (data.status === 'ok') {
+            statusEl.style.background = 'rgba(232,116,12,0.15)';
+            statusEl.style.color = 'var(--accent-yellow)';
+            statusEl.textContent = '⚠️ Worker çalışıyor ama Google API credentials eksik.';
+        } else {
+            throw new Error('Bad response');
+        }
+    } catch (e) {
+        statusEl.style.background = 'rgba(239,68,68,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ Bağlantı başarısız: ' + e.message;
+    }
+});
+
+$('saveApiBtn').addEventListener('click', () => {
+    const url = $('apiUrlInput').value.trim();
+    setKeywordApiUrl(url);
+    const statusEl = $('apiStatus');
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(16,185,129,0.15)';
+    statusEl.style.color = '#10b981';
+    statusEl.textContent = url ? '💾 Kaydedildi! Sonraki analizde kullanılacak.' : '💾 API devre dışı bırakıldı.';
+    setTimeout(() => { apiModal.style.display = 'none'; }, 1500);
+});
+
 // ===== File Upload Handling =====
 uploadZone.addEventListener('click', () => fileInput.click());
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });

@@ -711,6 +711,72 @@ function generateOverallStats(results) {
     };
 }
 
+// ===== GOOGLE ADS KEYWORD PLANNER API =====
+// Connects to Cloudflare Worker proxy for real search volumes
+
+// Config: Worker URL (set via Settings or localStorage)
+let KEYWORD_API_URL = localStorage.getItem('seo_keyword_api_url') || '';
+let _keywordApiAvailable = null; // null = unchecked, true/false = checked
+
+function setKeywordApiUrl(url) {
+    KEYWORD_API_URL = url;
+    localStorage.setItem('seo_keyword_api_url', url);
+    _keywordApiAvailable = null; // reset check
+}
+
+function getKeywordApiUrl() {
+    return KEYWORD_API_URL;
+}
+
+// Check if the Keyword API is available
+async function checkKeywordApi() {
+    if (!KEYWORD_API_URL) { _keywordApiAvailable = false; return false; }
+    try {
+        const resp = await fetch(KEYWORD_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'health' })
+        });
+        const data = await resp.json();
+        _keywordApiAvailable = data.status === 'ok' && data.hasCredentials;
+        return _keywordApiAvailable;
+    } catch (e) {
+        console.warn('Keyword API health check failed:', e);
+        _keywordApiAvailable = false;
+        return false;
+    }
+}
+
+// Fetch real search volumes from Google Ads Keyword Planner via proxy
+async function fetchKeywordVolumes(keywords) {
+    if (!KEYWORD_API_URL || !_keywordApiAvailable) return null;
+
+    try {
+        // Batch: max 50 per request
+        const batches = [];
+        for (let i = 0; i < keywords.length; i += 50) {
+            batches.push(keywords.slice(i, i + 50));
+        }
+
+        const allResults = {};
+        for (const batch of batches) {
+            const resp = await fetch(KEYWORD_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywords: batch })
+            });
+            const data = await resp.json();
+            if (data.success && data.data) {
+                Object.assign(allResults, data.data);
+            }
+        }
+        return allResults;
+    } catch (e) {
+        console.warn('Keyword volume fetch failed:', e);
+        return null;
+    }
+}
+
 // ===== GOOGLE AUTOCOMPLETE - REAL-TIME KEYWORD RESEARCH =====
 
 // Cache to avoid duplicate requests
@@ -861,7 +927,7 @@ async function researchLongTailKeywords(product, analysisResult, progressCallbac
 async function researchAllProducts(products, analysisResults, progressCallback) {
     const total = analysisResults.length;
 
-    // Step 1: Collect all unique keywords that need popularity checking
+    // Step 1: Collect all unique keywords
     const allKeywordsToCheck = new Set();
     analysisResults.forEach(r => {
         r.keywordDetails.forEach(kd => {
@@ -869,35 +935,65 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
         });
     });
 
-    // Step 2: Check each keyword's Google popularity
-    const keywordPopularity = {}; // keyword -> { rank, totalSuggestions, isPopular }
     const keywordsArray = [...allKeywordsToCheck];
-    for (let i = 0; i < keywordsArray.length; i++) {
-        const kw = keywordsArray[i];
+    const keywordPopularity = {};
+    let dataSource = 'google_autocomplete';
+
+    // Step 2: Try Google Ads Keyword Planner API first
+    const apiAvailable = await checkKeywordApi();
+
+    if (apiAvailable) {
+        dataSource = 'google_keyword_planner';
         try {
-            const suggestions = await googleAutocomplete(kw);
-            const rank = suggestions.findIndex(s => s.toLowerCase().includes(kw)) + 1;
-            keywordPopularity[kw] = {
-                googleRank: rank > 0 ? rank : 0,
-                googleSuggestionCount: suggestions.length,
-                isGooglePopular: suggestions.length > 0,
-                googleSuggestions: suggestions.slice(0, 5)
-            };
+            const volumeData = await fetchKeywordVolumes(keywordsArray);
+            if (volumeData) {
+                for (const kw of keywordsArray) {
+                    const vol = volumeData[kw] || {};
+                    keywordPopularity[kw] = {
+                        monthlyVolume: vol.avgMonthlySearches || 0,
+                        competition: vol.competition || 'UNSPECIFIED',
+                        competitionIndex: vol.competitionIndex || 0,
+                        cpcLow: vol.lowTopOfPageBidMicros || 0,
+                        cpcHigh: vol.highTopOfPageBidMicros || 0,
+                        isGooglePopular: (vol.avgMonthlySearches || 0) > 0,
+                        dataSource: 'keyword_planner'
+                    };
+                }
+            }
         } catch (e) {
-            keywordPopularity[kw] = { googleRank: 0, googleSuggestionCount: 0, isGooglePopular: false, googleSuggestions: [] };
+            console.warn('Keyword Planner failed, falling back to Autocomplete:', e);
+            dataSource = 'google_autocomplete';
         }
-        await delay(50);
     }
 
-    // Step 3: Inject Google data into keyword details
+    // Step 2b: Fallback to Google Autocomplete
+    if (dataSource === 'google_autocomplete') {
+        for (let i = 0; i < keywordsArray.length; i++) {
+            const kw = keywordsArray[i];
+            try {
+                const suggestions = await googleAutocomplete(kw);
+                const rank = suggestions.findIndex(s => s.toLowerCase().includes(kw)) + 1;
+                keywordPopularity[kw] = {
+                    googleRank: rank > 0 ? rank : 0,
+                    googleSuggestionCount: suggestions.length,
+                    isGooglePopular: suggestions.length > 0,
+                    googleSuggestions: suggestions.slice(0, 5),
+                    dataSource: 'autocomplete'
+                };
+            } catch (e) {
+                keywordPopularity[kw] = { googleRank: 0, googleSuggestionCount: 0, isGooglePopular: false, googleSuggestions: [], dataSource: 'autocomplete' };
+            }
+            await delay(50);
+        }
+    }
+
+    // Step 3: Inject data into keyword details
     analysisResults.forEach(r => {
+        r.keywordDataSource = dataSource;
         r.keywordDetails.forEach(kd => {
             const pop = keywordPopularity[kd.keyword?.toLowerCase()];
             if (pop) {
-                kd.googleRank = pop.googleRank;
-                kd.googleSuggestionCount = pop.googleSuggestionCount;
-                kd.isGooglePopular = pop.isGooglePopular;
-                kd.googleSuggestions = pop.googleSuggestions;
+                Object.assign(kd, pop);
             }
         });
     });
@@ -908,7 +1004,6 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
         const longTail = await researchLongTailKeywords(products[i], analysisResults[i]);
         analysisResults[i].longTailKeywords = longTail;
 
-        // Add best long-tail suggestions
         const allLongTailSuggestions = longTail.flatMap(lt => lt.suggestions);
         const uniqueSuggestions = [...new Set(allLongTailSuggestions)].slice(0, 5);
         if (uniqueSuggestions.length > 0) {

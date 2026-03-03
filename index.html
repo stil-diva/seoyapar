@@ -53,9 +53,47 @@
                         <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                     </svg>
                 </button>
+                <button class="theme-toggle" id="apiSettingsBtn" title="API Ayarları" style="margin-left:4px">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+                    </svg>
+                </button>
             </div>
         </div>
     </header>
+
+    <!-- API Settings Modal -->
+    <div id="apiSettingsModal"
+        style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center">
+        <div
+            style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;max-width:480px;width:90%">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+                <h3 style="margin:0;color:var(--text-primary)">⚙️ Google Keyword Planner API</h3>
+                <button id="closeApiSettings"
+                    style="background:none;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer">&times;</button>
+            </div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem">
+                Gerçek aylık arama hacimlerini görmek için Cloudflare Worker proxy URL'nizi girin.
+                <a href="https://github.com/stil-diva/seoyapar/tree/master/api-proxy" target="_blank"
+                    style="color:var(--accent-yellow)">Kurulum rehberi →</a>
+            </p>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:6px">Worker
+                    URL</label>
+                <input id="apiUrlInput" type="url" placeholder="https://seoyapar-keyword-proxy.HESABINIZ.workers.dev"
+                    style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;font-family:inherit" />
+            </div>
+            <div id="apiStatus"
+                style="font-size:0.8rem;margin-bottom:1rem;padding:8px 12px;border-radius:var(--radius-sm);display:none">
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button id="testApiBtn" class="btn btn-secondary btn-sm">🔍 Bağlantıyı Test Et</button>
+                <button id="saveApiBtn" class="btn btn-primary btn-sm">💾 Kaydet</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main">
