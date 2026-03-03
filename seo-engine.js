@@ -558,11 +558,15 @@ function analyzeProduct(product) {
         currentVolumeTotal += CATEGORY_MAPPINGS[nameCategory[0]].monthlyVolume;
     }
 
-    // 5. COLOR CHECK
-    const colorRegex = new RegExp(`(${COLORS.join('|')})`, 'gi');
-    const descColors = descLower.match(colorRegex);
-    const nameColors = nameLower.match(colorRegex);
-    if (descColors && !nameColors) {
+    // 5. COLOR CHECK (with proper word boundaries to avoid "tasarım" → "sarı" false positives)
+    const colorPattern = COLORS.map(c => `(?:^|[\\s,;.!?()\\[\\]/<>])${c}(?:$|[\\s,;.!?()\\[\\]/<>])`).join('|');
+    const colorRegex = new RegExp(colorPattern, 'gi');
+    const descColorMatches = descLower.match(colorRegex);
+    const nameColorMatches = nameLower.match(colorRegex);
+    const extractColor = (match) => match.trim().replace(/[^a-züöçşığ]/gi, '');
+    const descColors = descColorMatches ? descColorMatches.map(extractColor).filter(Boolean) : null;
+    const nameColors = nameColorMatches ? nameColorMatches.map(extractColor).filter(Boolean) : null;
+    if (descColors && descColors.length > 0 && (!nameColors || nameColors.length === 0)) {
         structureScore = Math.min(structureScore, 85);
         const missingColor = descColors[0];
         results.suggestions.push({
@@ -703,4 +707,168 @@ function generateOverallStats(results) {
         totalCurrentReach, totalPotentialReach, totalMissedVolume,
         topMissedWithVolume
     };
+}
+
+// ===== GOOGLE AUTOCOMPLETE - REAL-TIME KEYWORD RESEARCH =====
+
+// Cache to avoid duplicate requests
+const _autocompleteCache = {};
+
+// Query Google Autocomplete via JSONP (no CORS issues)
+function googleAutocomplete(query) {
+    if (_autocompleteCache[query]) return Promise.resolve(_autocompleteCache[query]);
+    return new Promise((resolve) => {
+        const cbName = '_ac_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const script = document.createElement('script');
+
+        const timeout = setTimeout(() => {
+            resolve([]);
+            cleanup();
+        }, 4000);
+
+        function cleanup() {
+            clearTimeout(timeout);
+            delete window[cbName];
+            if (script.parentNode) script.remove();
+        }
+
+        window[cbName] = function (data) {
+            const suggestions = data[1] || [];
+            _autocompleteCache[query] = suggestions;
+            resolve(suggestions);
+            cleanup();
+        };
+
+        script.src = `https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(query)}&hl=tr&gl=tr&callback=${cbName}`;
+        script.onerror = () => { resolve([]); cleanup(); };
+        document.head.appendChild(script);
+    });
+}
+
+// Small delay utility
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Generate smart long-tail keyword combos from product attributes
+function generateLongTailQueries(product, analysisResult) {
+    const queries = [];
+    const nameLower = (product.name || '').toLowerCase();
+    const descLower = (product.description || '').toLowerCase();
+
+    // Detect category
+    let category = '';
+    for (const [cat, data] of Object.entries(CATEGORY_MAPPINGS)) {
+        if (data.aliases.some(a => nameLower.includes(a))) { category = cat; break; }
+    }
+    if (!category) {
+        for (const [cat, data] of Object.entries(CATEGORY_MAPPINGS)) {
+            if (data.indicators.some(ind => descLower.includes(ind))) { category = cat; break; }
+        }
+    }
+
+    // Detect size modifier
+    let sizeModifier = '';
+    if (descLower.includes('büyük beden') || descLower.includes('battal') || descLower.includes('plus size')) {
+        sizeModifier = 'büyük beden';
+    }
+
+    // Detect materials
+    const materials = [];
+    for (const [mat, data] of Object.entries(MATERIAL_KEYWORDS)) {
+        if (descLower.includes(mat) && data.searchTerms.length > 0) {
+            materials.push(data.searchTerms[0]);
+        }
+    }
+
+    // Detect features
+    const features = [];
+    for (const [feat, data] of Object.entries(FEATURE_KEYWORDS)) {
+        if (descLower.includes(feat) && data.monthlyVolume >= 3000) {
+            features.push(data.searchTerms[0]);
+        }
+    }
+
+    // Detect gender
+    let gender = '';
+    if (descLower.includes('kadın') || nameLower.includes('kadın')) gender = 'kadın';
+    else if (descLower.includes('erkek') || nameLower.includes('erkek')) gender = 'erkek';
+
+    // Generate combos (most specific → least specific)
+    if (category) {
+        // [gender] + [size] + [material] + [feature] + category
+        if (sizeModifier && materials.length > 0) {
+            queries.push(`${sizeModifier} ${materials[0]} ${category}`);
+        }
+        if (sizeModifier && features.length > 0) {
+            queries.push(`${sizeModifier} ${features[0]} ${category}`);
+        }
+        if (sizeModifier) {
+            queries.push(`${sizeModifier} ${category}`);
+        }
+        if (materials.length > 0) {
+            queries.push(`${materials[0]} ${category}`);
+        }
+        if (features.length > 0) {
+            queries.push(`${features[0]} ${category}`);
+        }
+        if (gender) {
+            queries.push(`${gender} ${category}`);
+        }
+        // Category alone
+        queries.push(category);
+    }
+
+    // Deduplicate and limit
+    const unique = [...new Set(queries.map(q => q.trim().toLowerCase()))];
+    return unique.slice(0, 6);
+}
+
+// Run long-tail keyword research for a single product
+async function researchLongTailKeywords(product, analysisResult, progressCallback) {
+    const queries = generateLongTailQueries(product, analysisResult);
+    const longTailResults = [];
+
+    for (let i = 0; i < queries.length; i++) {
+        const query = queries[i];
+        try {
+            const suggestions = await googleAutocomplete(query);
+            if (suggestions.length > 0) {
+                longTailResults.push({
+                    query,
+                    suggestions: suggestions.slice(0, 8),
+                    // Check which suggestions are covered by the title
+                    covered: suggestions.filter(s =>
+                        s.split(' ').every(word =>
+                            word.length < 3 || product.name.toLowerCase().includes(word)
+                        )
+                    ),
+                    missing: suggestions.filter(s =>
+                        !s.split(' ').every(word =>
+                            word.length < 3 || product.name.toLowerCase().includes(word)
+                        )
+                    )
+                });
+            }
+        } catch (e) { /* skip on error */ }
+        await delay(80); // Rate limiting
+    }
+
+    return longTailResults;
+}
+
+// Run long-tail research for ALL products (with progress callback)
+async function researchAllProducts(products, analysisResults, progressCallback) {
+    const total = analysisResults.length;
+    for (let i = 0; i < total; i++) {
+        if (progressCallback) progressCallback(i + 1, total);
+        const longTail = await researchLongTailKeywords(products[i], analysisResults[i]);
+        analysisResults[i].longTailKeywords = longTail;
+
+        // Add best long-tail suggestions to the suggestions list
+        const allLongTailSuggestions = longTail.flatMap(lt => lt.suggestions);
+        const uniqueSuggestions = [...new Set(allLongTailSuggestions)].slice(0, 5);
+        if (uniqueSuggestions.length > 0) {
+            analysisResults[i].googleSuggestions = uniqueSuggestions;
+        }
+    }
+    return analysisResults;
 }

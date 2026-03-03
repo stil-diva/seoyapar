@@ -126,8 +126,9 @@ function runAnalysis() {
     }
 
     loadingOverlay.style.display = 'flex';
+    const loadingText = loadingOverlay.querySelector('p');
 
-    setTimeout(() => {
+    setTimeout(async () => {
         const products = rawData.map(row => ({
             name: String(row[nameCol] || '').trim(),
             description: String(row[descCol] || '').trim(),
@@ -135,7 +136,20 @@ function runAnalysis() {
             category: catCol >= 0 ? String(row[catCol] || '').trim() : ''
         })).filter(p => p.name);
 
+        // Step 1: Basic SEO analysis
+        loadingText.textContent = 'Ürünler analiz ediliyor...';
         analysisResults = products.map(p => analyzeProduct(p));
+
+        // Step 2: Google Autocomplete long-tail keyword research
+        loadingText.textContent = 'Google arama verileri alınıyor...';
+        try {
+            await researchAllProducts(products, analysisResults, (current, total) => {
+                loadingText.textContent = `Google arama verileri alınıyor... ${current}/${total}`;
+            });
+        } catch (e) {
+            console.warn('Google Autocomplete araması başarısız:', e);
+        }
+
         const stats = generateOverallStats(analysisResults);
 
         loadingOverlay.style.display = 'none';
@@ -144,7 +158,7 @@ function runAnalysis() {
         headerStats.style.display = 'flex';
 
         renderResults(stats);
-    }, 800);
+    }, 300);
 }
 
 // ===== Render Results =====
@@ -395,6 +409,37 @@ function showProductModal(r) {
                 Anahtar Kelime Durumu
             </div>
             <div class="keywords-found">${kwHtml}</div>
+        </div>` : ''}
+        ${r.longTailKeywords && r.longTailKeywords.length > 0 ? `
+        <div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                🔍 Google'da Gerçek Aramalar (Uzun Kuyruklu Anahtar Kelimeler)
+            </div>
+            <div class="long-tail-results">
+                ${r.longTailKeywords.map(lt => `
+                    <div class="lt-query-group">
+                        <div class="lt-query-label">🔎 "${lt.query}"</div>
+                        <div class="lt-suggestions">
+                            ${lt.suggestions.map(s => {
+        const nameLow = r.name.toLowerCase();
+        const words = s.toLowerCase().split(' ').filter(w => w.length >= 3);
+        const covered = words.every(w => nameLow.includes(w));
+        return `<div class="lt-suggestion ${covered ? 'lt-covered' : 'lt-missing'}">
+                                    <span class="lt-icon">${covered ? '✅' : '❌'}</span>
+                                    <span class="lt-text">${s}</span>
+                                    <span class="lt-source">Google Suggest</span>
+                                </div>`;
+    }).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>` : ''}
+        ${r.googleSuggestions && r.googleSuggestions.length > 0 && !(r.longTailKeywords && r.longTailKeywords.length > 0) ? `
+        <div class="modal-section">
+            <div class="modal-section-title">🔍 Google Önerileri</div>
+            <div class="keywords-found">${r.googleSuggestions.map(s => `<span class="keyword-pill missing">💡 ${s}</span>`).join('')}</div>
         </div>` : ''}
         <div class="modal-section">
             <div class="modal-section-title">
