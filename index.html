@@ -145,6 +145,10 @@
                         <label>Stok Sütunu <span class="optional">(opsiyonel)</span></label>
                         <select id="colStock" class="mapping-select"></select>
                     </div>
+                    <div class="mapping-field">
+                        <label>Marka Sütunu <span class="optional">(opsiyonel)</span></label>
+                        <select id="colBrand" class="mapping-select"></select>
+                    </div>
                 </div>
                 <div class="mapping-actions">
                     <button class="btn btn-secondary" id="backToUpload">
@@ -182,6 +186,12 @@
                     <div class="filter-group stock-filters" id="stockFilters" style="display:none">
                         <button class="filter-btn" data-stock="instock">📦 Stokta Var</button>
                         <button class="filter-btn" data-stock="outofstock">🚫 Stokta Yok</button>
+                    </div>
+                    <div class="filter-group" id="brandFilterWrap" style="display:none">
+                        <select id="brandFilter" class="mapping-select"
+                            style="min-width:140px;font-size:0.78rem;padding:6px 10px">
+                            <option value="all">🏷️ Tüm Markalar</option>
+                        </select>
                     </div>
                     <button class="btn btn-secondary btn-sm" id="exportResults">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"

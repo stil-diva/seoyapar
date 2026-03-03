@@ -70,8 +70,8 @@ function showMapping() {
     $('mappingPreview').innerHTML = tableHtml;
 
     // Populate selects
-    const selects = ['colName', 'colDescription', 'colImage', 'colCategory', 'colStock'];
-    const optionalSelects = ['colImage', 'colCategory', 'colStock'];
+    const selects = ['colName', 'colDescription', 'colImage', 'colCategory', 'colStock', 'colBrand'];
+    const optionalSelects = ['colImage', 'colCategory', 'colStock', 'colBrand'];
     selects.forEach(selId => {
         const sel = $(selId);
         sel.innerHTML = '';
@@ -96,6 +96,7 @@ function autoDetectColumns() {
     const imgKeywords = ['görsel', 'resim', 'image', 'foto', 'url', 'img', 'picture', 'media'];
     const catKeywords = ['kategori', 'category', 'tür', 'tip', 'type', 'grup'];
     const stockKeywords = ['stok', 'stock', 'miktar', 'adet', 'envanter', 'inventory', 'quantity'];
+    const brandKeywords = ['marka', 'brand', 'üretici', 'manufacturer'];
 
     headers.forEach((h, i) => {
         const hl = h.toLowerCase();
@@ -104,6 +105,7 @@ function autoDetectColumns() {
         if (imgKeywords.some(k => hl.includes(k))) $('colImage').value = i;
         if (catKeywords.some(k => hl.includes(k))) $('colCategory').value = i;
         if (stockKeywords.some(k => hl.includes(k))) $('colStock').value = i;
+        if (brandKeywords.some(k => hl.includes(k))) $('colBrand').value = i;
     });
 }
 
@@ -174,8 +176,9 @@ function runAnalysis() {
         elPercent.textContent = Math.round(pct) + '%';
     }
 
-    // Stock column
+    // Stock & Brand columns
     const stockCol = parseInt($('colStock').value);
+    const brandCol = parseInt($('colBrand').value);
 
     setTimeout(async () => {
         const products = rawData.map(row => ({
@@ -183,7 +186,8 @@ function runAnalysis() {
             description: String(row[descCol] || '').trim(),
             image: imgCol >= 0 ? String(row[imgCol] || '').trim() : '',
             category: catCol >= 0 ? String(row[catCol] || '').trim() : '',
-            stock: stockCol >= 0 ? String(row[stockCol] || '').trim() : ''
+            stock: stockCol >= 0 ? String(row[stockCol] || '').trim() : '',
+            brand: brandCol >= 0 ? String(row[brandCol] || '').trim() : ''
         })).filter(p => p.name);
 
         // Step 1: Basic SEO analysis (10% of progress)
@@ -196,6 +200,7 @@ function runAnalysis() {
         analysisResults = products.map((p, i) => {
             const result = analyzeProduct(p);
             result.stock = p.stock;
+            result.brand = p.brand;
             return result;
         });
         setProgress(15);
@@ -298,16 +303,60 @@ function renderResults(stats) {
     const hasStock = analysisResults.some(r => r.stock && r.stock.trim() !== '');
     $('stockFilters').style.display = hasStock ? 'flex' : 'none';
 
+    // Populate brand filter
+    const hasBrand = analysisResults.some(r => r.brand && r.brand.trim() !== '');
+    const brandWrap = $('brandFilterWrap');
+    const brandSel = $('brandFilter');
+    if (hasBrand) {
+        brandWrap.style.display = 'flex';
+        const brands = [...new Set(analysisResults.map(r => r.brand).filter(Boolean))].sort();
+        brandSel.innerHTML = '<option value="all">🏷️ Tüm Markalar</option>';
+        brands.forEach(b => {
+            const count = analysisResults.filter(r => r.brand === b).length;
+            brandSel.innerHTML += `<option value="${b}">${b} (${count})</option>`;
+        });
+    } else {
+        brandWrap.style.display = 'none';
+    }
+
+    // Centralized filter function
+    function applyFilters() {
+        let filtered = [...analysisResults];
+        // Severity
+        const activeFilter = document.querySelector('.filter-btn[data-filter].active');
+        if (activeFilter && activeFilter.dataset.filter !== 'all') {
+            filtered = filtered.filter(r => r.severity === activeFilter.dataset.filter);
+        }
+        // Stock
+        const activeStock = document.querySelector('.filter-btn[data-stock].active');
+        if (activeStock) {
+            const isInStock = (s) => {
+                if (!s) return false;
+                const sl = s.toLowerCase().trim();
+                if (sl === '0' || sl === '' || sl === 'yok' || sl === 'hayır' || sl === 'no' || sl === 'false') return false;
+                const num = parseFloat(sl);
+                if (!isNaN(num) && num <= 0) return false;
+                return true;
+            };
+            filtered = filtered.filter(r =>
+                activeStock.dataset.stock === 'instock' ? isInStock(r.stock) : !isInStock(r.stock)
+            );
+        }
+        // Brand
+        const brandVal = brandSel.value;
+        if (brandVal !== 'all') {
+            filtered = filtered.filter(r => r.brand === brandVal);
+        }
+        renderProductCards(filtered);
+    }
+
     // Severity filter
     document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            // Reset stock filter
             document.querySelectorAll('.filter-btn[data-stock]').forEach(b => b.classList.remove('active'));
-            const filter = btn.dataset.filter;
-            const filtered = filter === 'all' ? analysisResults : analysisResults.filter(r => r.severity === filter);
-            renderProductCards(filtered);
+            applyFilters();
         });
     });
 
@@ -316,30 +365,13 @@ function renderResults(stats) {
         btn.addEventListener('click', () => {
             const wasActive = btn.classList.contains('active');
             document.querySelectorAll('.filter-btn[data-stock]').forEach(b => b.classList.remove('active'));
-            if (wasActive) {
-                // Deactivate — show all (respecting severity filter)
-                const activeFilter = document.querySelector('.filter-btn[data-filter].active');
-                const sf = activeFilter ? activeFilter.dataset.filter : 'all';
-                const filtered = sf === 'all' ? analysisResults : analysisResults.filter(r => r.severity === sf);
-                renderProductCards(filtered);
-                return;
-            }
-            btn.classList.add('active');
-            const stockFilter = btn.dataset.stock;
-            const isInStock = (s) => {
-                if (!s) return false;
-                const sl = s.toLowerCase().trim();
-                if (sl === '0' || sl === '' || sl === 'yok' || sl === 'hayır' || sl === 'no' || sl === 'false') return false;
-                const num = parseFloat(sl);
-                if (!isNaN(num) && num <= 0) return false;
-                return true; // "var", "evet", positive numbers, etc.
-            };
-            const filtered = analysisResults.filter(r =>
-                stockFilter === 'instock' ? isInStock(r.stock) : !isInStock(r.stock)
-            );
-            renderProductCards(filtered);
+            if (!wasActive) btn.classList.add('active');
+            applyFilters();
         });
     });
+
+    // Brand filter
+    brandSel.addEventListener('change', () => applyFilters());
 }
 
 function renderBulkEdit() {
