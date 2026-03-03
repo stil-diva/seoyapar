@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ürün Adı SEO Analisti | Product Name Analyzer</title>
+    <meta name="description"
+        content="Excel dosyanızı yükleyin, ürün adlarınızın SEO skorunu analiz edin ve iyileştirme önerileri alın.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <span class="logo-text">SEO<span class="logo-accent">Analyst</span></span>
+            </div>
+            <div class="header-stats" id="headerStats" style="display:none;">
+                <div class="stat-pill">
+                    <span class="stat-label">Toplam Ürün</span>
+                    <span class="stat-value" id="totalProducts">0</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">Ort. Skor</span>
+                    <span class="stat-value" id="avgScore">0</span>
+                </div>
+                <div class="stat-pill critical">
+                    <span class="stat-label">Kritik</span>
+                    <span class="stat-value" id="criticalCount">0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Upload Section -->
+        <section class="upload-section" id="uploadSection">
+            <div class="upload-hero">
+                <div class="upload-hero-bg"></div>
+                <h1 class="upload-title">Ürün Adı <span class="gradient-text">SEO Analisti</span></h1>
+                <p class="upload-subtitle">Excel dosyanızı yükleyin, ürün adlarınızın SEO performansını analiz
+                    edin.<br>Eksik anahtar kelimeleri bulun, satışlarınızı artırın.</p>
+
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-zone-inner">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <h3>Excel Dosyanızı Sürükleyin</h3>
+                        <p>veya dosya seçmek için tıklayın</p>
+                        <div class="upload-formats">.xlsx, .xls, .csv desteklenir</div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #6366f1;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                        </div>
+                        <h4>Anahtar Kelime Analizi</h4>
+                        <p>Ürün açıklamasındaki önemli kelimelerin başlıkta olup olmadığını kontrol eder</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #f59e0b;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <h4>Malzeme Eşleştirme</h4>
+                        <p>Elastan → Esnek, Pamuk → Doğal gibi müşteri dilinde öneriler sunar</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon" style="--accent: #10b981;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                        <h4>SEO Skorlama</h4>
+                        <p>Her ürün için detaylı SEO skoru ve iyileştirme önerileri</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Column Mapping Section -->
+        <section class="mapping-section" id="mappingSection" style="display:none;">
+            <div class="section-header">
+                <h2>Sütun Eşleştirme</h2>
+                <p>Excel dosyanızdaki sütunları doğru alanlarla eşleştirin</p>
+            </div>
+            <div class="mapping-card">
+                <div class="mapping-preview" id="mappingPreview"></div>
+                <div class="mapping-form">
+                    <div class="mapping-field">
+                        <label>Ürün Adı Sütunu <span class="required">*</span></label>
+                        <select id="colName" class="mapping-select"></select>
+                    </div>
+                    <div class="mapping-field">
+                        <label>Ürün Açıklaması Sütunu <span class="required">*</span></label>
+                        <select id="colDescription" class="mapping-select"></select>
+                    </div>
+                    <div class="mapping-field">
+                        <label>Görsel URL Sütunu <span class="optional">(opsiyonel)</span></label>
+                        <select id="colImage" class="mapping-select"></select>
+                    </div>
+                    <div class="mapping-field">
+                        <label>Kategori Sütunu <span class="optional">(opsiyonel)</span></label>
+                        <select id="colCategory" class="mapping-select"></select>
+                    </div>
+                </div>
+                <div class="mapping-actions">
+                    <button class="btn btn-secondary" id="backToUpload">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <path d="M19 12H5M12 19l-7-7 7-7" />
+                        </svg>
+                        Geri
+                    </button>
+                    <button class="btn btn-primary" id="startAnalysis">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Analizi Başlat
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection" style="display:none;">
+            <div class="section-header">
+                <div class="section-header-left">
+                    <h2>Analiz Sonuçları</h2>
+                    <p id="resultsSubtitle"></p>
+                </div>
+                <div class="section-header-right">
+                    <div class="filter-group">
+                        <button class="filter-btn active" data-filter="all">Tümü</button>
+                        <button class="filter-btn" data-filter="critical">Kritik</button>
+                        <button class="filter-btn" data-filter="warning">Uyarı</button>
+                        <button class="filter-btn" data-filter="good">İyi</button>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="exportResults">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                            height="16">
+                            <path
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Raporu İndir
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="newAnalysis">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                            height="16">
+                            <path d="M12 4v16m8-8H4" />
+                        </svg>
+                        Yeni Analiz
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Dashboard -->
+            <div class="summary-dashboard" id="summaryDashboard">
+                <div class="summary-card score-card">
+                    <div class="score-ring" id="overallScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)"
+                                stroke-width="8" />
+                            <circle cx="60" cy="60" r="54" fill="none" stroke-width="8" stroke-linecap="round"
+                                id="scoreCircle" stroke-dasharray="339.292" stroke-dashoffset="339.292"
+                                transform="rotate(-90 60 60)" />
+                        </svg>
+                        <div class="score-value" id="overallScore">0</div>
+                    </div>
+                    <div class="score-label">Genel SEO Skoru</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon missing-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="summary-stat" id="missingKeywordsCount">0</div>
+                    <div class="summary-label">Eksik Anahtar Kelime</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon material-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path
+                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                    </div>
+                    <div class="summary-stat" id="materialMismatchCount">0</div>
+                    <div class="summary-label">Malzeme Uyumsuzluğu</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon length-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    </div>
+                    <div class="summary-stat" id="titleLengthIssues">0</div>
+                    <div class="summary-label">Başlık Uzunluk Sorunu</div>
+                </div>
+            </div>
+
+            <!-- Top Missing Keywords -->
+            <div class="top-keywords-section" id="topKeywordsSection">
+                <h3>🔑 En Çok Eksik Olan Anahtar Kelimeler</h3>
+                <div class="keywords-cloud" id="keywordsCloud"></div>
+            </div>
+
+            <!-- Product Cards -->
+            <div class="products-grid" id="productsGrid"></div>
+        </section>
+    </main>
+
+    <!-- Product Detail Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="productModal">
+            <button class="modal-close" id="modalClose">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <div class="modal-content" id="modalContent"></div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <p>Ürünler analiz ediliyor...</p>
+        </div>
+    </div>
+
+    <script src="seo-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
