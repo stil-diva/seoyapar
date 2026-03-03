@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ürün Adı SEO Analisti | Product Name Analyzer</title>
+    <title>SEOYapar | Ürün Adı SEO Analisti</title>
     <meta name="description"
         content="Excel dosyanızı yükleyin, ürün adlarınızın SEO skorunu analiz edin ve iyileştirme önerileri alın.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,10 +22,10 @@
             <div class="logo">
                 <div class="logo-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </div>
-                <span class="logo-text">SEO<span class="logo-accent">Analyst</span></span>
+                <span class="logo-text">SEO<span class="logo-accent">Yapar</span></span>
             </div>
             <div class="header-stats" id="headerStats" style="display:none;">
                 <div class="stat-pill">
@@ -50,7 +50,7 @@
         <section class="upload-section" id="uploadSection">
             <div class="upload-hero">
                 <div class="upload-hero-bg"></div>
-                <h1 class="upload-title">Ürün Adı <span class="gradient-text">SEO Analisti</span></h1>
+                <h1 class="upload-title">Ürün Adı <span class="gradient-text">SEO Yapar</span></h1>
                 <p class="upload-subtitle">Excel dosyanızı yükleyin, ürün adlarınızın SEO performansını analiz
                     edin.<br>Eksik anahtar kelimeleri bulun, satışlarınızı artırın.</p>
 
@@ -71,7 +71,7 @@
 
                 <div class="features-grid">
                     <div class="feature-card">
-                        <div class="feature-icon" style="--accent: #6366f1;">
+                        <div class="feature-icon" style="--accent: #7B2D5F;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path
                                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -81,7 +81,7 @@
                         <p>Ürün açıklamasındaki önemli kelimelerin başlıkta olup olmadığını kontrol eder</p>
                     </div>
                     <div class="feature-card">
-                        <div class="feature-icon" style="--accent: #f59e0b;">
+                        <div class="feature-icon" style="--accent: #E8740C;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
@@ -90,7 +90,7 @@
                         <p>Elastan → Esnek, Pamuk → Doğal gibi müşteri dilinde öneriler sunar</p>
                     </div>
                     <div class="feature-card">
-                        <div class="feature-icon" style="--accent: #10b981;">
+                        <div class="feature-icon" style="--accent: #2D8B55;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path
                                     d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -185,8 +185,7 @@
                 <div class="summary-card score-card">
                     <div class="score-ring" id="overallScoreRing">
                         <svg viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)"
-                                stroke-width="8" />
+                            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(120,80,40,0.08)" stroke-width="8" />
                             <circle cx="60" cy="60" r="54" fill="none" stroke-width="8" stroke-linecap="round"
                                 id="scoreCircle" stroke-dasharray="339.292" stroke-dashoffset="339.292"
                                 transform="rotate(-90 60 60)" />
@@ -236,6 +235,20 @@
             <div class="products-grid" id="productsGrid"></div>
         </section>
     </main>
+
+    <!-- Ad Sidebars -->
+    <aside class="ad-sidebar ad-sidebar-left" id="adLeft">
+        <div class="ad-slot">
+            <div class="ad-placeholder">Reklam Alanı</div>
+            <!-- AdSense kodu buraya gelecek -->
+        </div>
+    </aside>
+    <aside class="ad-sidebar ad-sidebar-right" id="adRight">
+        <div class="ad-slot">
+            <div class="ad-placeholder">Reklam Alanı</div>
+            <!-- AdSense kodu buraya gelecek -->
+        </div>
+    </aside>
 
     <!-- Product Detail Modal -->
     <div class="modal-overlay" id="modalOverlay">
