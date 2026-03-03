@@ -149,44 +149,53 @@ function runAnalysis() {
 
 // ===== Render Results =====
 function renderResults(stats) {
-    // Header stats
     $('totalProducts').textContent = stats.totalProducts;
     $('avgScore').textContent = stats.avgScore;
     $('criticalCount').textContent = stats.criticalCount;
-
-    // Subtitle
     $('resultsSubtitle').textContent = `${stats.totalProducts} ürün analiz edildi`;
 
-    // Overall score ring
+    // Score ring
     const pct = stats.avgScore / 100;
     const circumference = 2 * Math.PI * 54;
-    const offset = circumference * (1 - pct);
     const circle = $('scoreCircle');
-    circle.style.strokeDashoffset = offset;
-    circle.style.stroke = stats.avgScore >= 80 ? '#10b981' : stats.avgScore >= 50 ? '#f59e0b' : '#ef4444';
+    circle.style.strokeDashoffset = circumference * (1 - pct);
+    circle.style.stroke = stats.avgScore >= 80 ? 'var(--accent-green)' : stats.avgScore >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
     $('overallScore').textContent = stats.avgScore;
 
-    // Summary cards
     $('missingKeywordsCount').textContent = stats.totalMissing;
     $('materialMismatchCount').textContent = stats.totalMaterialIssues;
     $('titleLengthIssues').textContent = stats.titleLengthIssues;
 
-    // Top missing keywords cloud
+    // Reach comparison
+    const dashboard = $('summaryDashboard');
+    let reachEl = document.getElementById('reachComparison');
+    if (!reachEl) { reachEl = document.createElement('div'); reachEl.id = 'reachComparison'; dashboard.after(reachEl); }
+    reachEl.innerHTML = `<div class="reach-comparison">
+        <div class="reach-card"><div class="reach-icon">📊</div><div class="reach-number">${stats.totalCurrentReach.toLocaleString('tr-TR')}</div><div class="reach-label">Mevcut Aylık Erişim</div></div>
+        <div class="reach-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+        <div class="reach-card potential"><div class="reach-icon">🚀</div><div class="reach-number">${stats.totalPotentialReach.toLocaleString('tr-TR')}</div><div class="reach-label">Potansiyel Erişim</div></div>
+        <div class="reach-card missed"><div class="reach-icon">⚡</div><div class="reach-number" style="color:var(--accent-yellow)">+${stats.totalMissedVolume.toLocaleString('tr-TR')}</div><div class="reach-label">Kaçırılan Hacim/Ay</div></div>
+    </div>`;
+
+    // Keywords cloud with volumes
     const cloud = $('keywordsCloud');
     cloud.innerHTML = '';
-    stats.topMissing.forEach(([keyword, count]) => {
-        const tag = document.createElement('div');
-        const cls = count >= 5 ? 'critical-tag' : count >= 3 ? 'warning-tag' : 'info-tag';
-        tag.className = `keyword-tag ${cls}`;
-        tag.innerHTML = `${keyword} <span class="keyword-count">${count}</span>`;
-        cloud.appendChild(tag);
-    });
-    $('topKeywordsSection').style.display = stats.topMissing.length > 0 ? 'block' : 'none';
+    const kwData = stats.topMissedWithVolume || [];
+    if (kwData.length > 0) {
+        kwData.forEach(item => {
+            const tag = document.createElement('div');
+            const cls = item.volume >= 10000 ? 'critical-tag' : item.volume >= 5000 ? 'warning-tag' : 'info-tag';
+            tag.className = `keyword-tag ${cls}`;
+            tag.innerHTML = `${item.keyword} <span class="keyword-volume">🔍 ${item.volume.toLocaleString('tr-TR')}/ay</span> <span class="keyword-count">×${item.count}</span>`;
+            cloud.appendChild(tag);
+        });
+    }
+    $('topKeywordsSection').style.display = kwData.length > 0 ? 'block' : 'none';
 
-    // Product cards
+    // Bulk edit
+    renderBulkEdit();
     renderProductCards(analysisResults);
 
-    // Filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -196,6 +205,32 @@ function renderResults(stats) {
             renderProductCards(filtered);
         });
     });
+}
+
+function renderBulkEdit() {
+    const needsEdit = analysisResults.filter(r => r.suggestedName !== r.name);
+    if (needsEdit.length === 0) return;
+    let bulkEl = document.getElementById('bulkEditSection');
+    if (!bulkEl) { bulkEl = document.createElement('div'); bulkEl.id = 'bulkEditSection'; const topKw = $('topKeywordsSection'); topKw.after(bulkEl); }
+    bulkEl.className = 'top-keywords-section';
+    bulkEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+            <h3>✏️ Toplu Düzenleme <span style="opacity:0.6;font-size:0.8em">(${needsEdit.length} ürün)</span></h3>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bulkList').style.display=document.getElementById('bulkList').style.display==='none'?'block':'none'">Göster/Gizle</button>
+                <button class="btn btn-primary btn-sm" onclick="exportBulkEdit()">📥 Düzeltmeleri İndir</button>
+            </div>
+        </div>
+        <div id="bulkList" style="display:none;max-height:400px;overflow-y:auto">
+            ${needsEdit.map(r => `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;background:var(--bg-primary)">
+                <span class="mini-score ${r.score >= 80 ? 'score-good' : r.score >= 50 ? 'score-warning' : 'score-critical'}" style="width:36px;height:36px;font-size:0.8rem">${r.score}</span>
+                <div style="min-width:0">
+                    <div style="font-size:0.75rem;color:var(--text-muted);text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</div>
+                    <input style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;font-family:inherit" value="${escapeHtml(r.suggestedName)}" data-idx="${analysisResults.indexOf(r)}" onchange="analysisResults[this.dataset.idx].suggestedName=this.value" />
+                </div>
+                <span style="font-size:0.7rem;color:var(--accent-yellow);white-space:nowrap">+${r.missedVolume.toLocaleString('tr-TR')}/ay</span>
+            </div>`).join('')}
+        </div>`;
 }
 
 function renderProductCards(results) {
@@ -296,7 +331,7 @@ function showProductModal(r) {
 
     // Highlighted description
     let descHtml = escapeHtml(r.description);
-    const allKw = [...Object.keys(MATERIAL_MAPPINGS), ...Object.keys(FEATURE_KEYWORDS)];
+    const allKw = [...Object.keys(MATERIAL_KEYWORDS), ...Object.keys(FEATURE_KEYWORDS)];
     allKw.forEach(kw => {
         const regex = new RegExp(`(${escapeRegex(kw)})`, 'gi');
         descHtml = descHtml.replace(regex, '<span class="desc-highlight">$1</span>');
@@ -331,9 +366,9 @@ function showProductModal(r) {
         <div class="modal-score-section">
             <div class="modal-score-ring">
                 <svg viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                    <circle cx="40" cy="40" r="36" fill="none" stroke="var(--border)" stroke-width="6"/>
                     <circle cx="40" cy="40" r="36" fill="none" stroke-width="6" stroke-linecap="round"
-                        stroke="${scClass === 'good' ? '#10b981' : scClass === 'warning' ? '#f59e0b' : '#ef4444'}"
+                        stroke="${scClass === 'good' ? 'var(--accent-green)' : scClass === 'warning' ? 'var(--accent-yellow)' : 'var(--accent-red)'}"
                         stroke-dasharray="${2 * Math.PI * 36}"
                         stroke-dashoffset="${2 * Math.PI * 36 * (1 - r.score / 100)}"
                         transform="rotate(-90 40 40)"/>
@@ -402,7 +437,7 @@ $('exportResults').addEventListener('click', () => {
         'Eksik Anahtar Kelimeler': r.missingKeywords.join(', ') || 'Yok',
         'Mevcut Anahtar Kelimeler': r.presentKeywords.join(', ') || 'Yok',
         'Kategori Sorunu': r.categoryIssues.length > 0 ? r.categoryIssues.map(c => c.text).join('; ') : 'Yok',
-        'Malzeme Uyumsuzlukları': r.materialIssues.length > 0 ? r.materialIssues.map(m => `${m.material} → ${m.customerTerms[0]}`).join(', ') : 'Yok',
+        'Malzeme Uyumsuzlukları': r.materialIssues.length > 0 ? r.materialIssues.map(m => `${m.material} → ${m.searchTerms[0]}`).join(', ') : 'Yok',
         'Tüm Öneriler': r.suggestions.map((s, j) => `${j + 1}. ${stripHtml(s.text)}`).join('\n') || 'Öneri yok',
         'Kategori': r.category || '',
         'Ürün Açıklaması': r.description
@@ -435,6 +470,25 @@ $('exportResults').addEventListener('click', () => {
     XLSX.writeFile(wb, 'seo_analiz_raporu.xlsx');
 });
 
+// ===== Bulk Edit Export =====
+function exportBulkEdit() {
+    const data = analysisResults
+        .filter(r => r.suggestedName !== r.name)
+        .map(r => ({
+            'Mevcut Ürün Adı': r.name,
+            'Düzeltilmiş Ürün Adı': r.suggestedName,
+            'SEO Skoru': r.score,
+            'Kaçırılan Hacim/Ay': r.missedVolume,
+            'Eksik Kelimeler': r.missingKeywords.join(', ')
+        }));
+    if (data.length === 0) return alert('Düzeltme gereken ürün yok!');
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [{ wch: 45 }, { wch: 55 }, { wch: 10 }, { wch: 16 }, { wch: 40 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Düzeltmeler');
+    XLSX.writeFile(wb, 'seo_duzeltmeler.xlsx');
+}
+
 // ===== New Analysis =====
 $('newAnalysis').addEventListener('click', () => {
     resultsSection.style.display = 'none';
@@ -444,6 +498,11 @@ $('newAnalysis').addEventListener('click', () => {
     rawData = [];
     headers = [];
     analysisResults = [];
+    // Clean up dynamically added sections
+    const reachEl = document.getElementById('reachComparison');
+    if (reachEl) reachEl.remove();
+    const bulkEl = document.getElementById('bulkEditSection');
+    if (bulkEl) bulkEl.remove();
 });
 
 // ===== Utility Functions =====

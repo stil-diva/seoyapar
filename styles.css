@@ -700,7 +700,111 @@ body {
     color: var(--text-muted);
 }
 
-/* Top Keywords */
+/* Reach Comparison */
+.reach-comparison {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.reach-card {
+    text-align: center;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    min-width: 160px;
+}
+
+.reach-card.potential {
+    border-color: var(--accent-green);
+}
+
+.reach-card.missed {
+    border-color: var(--accent-yellow);
+}
+
+.reach-icon {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+}
+
+.reach-number {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text-primary);
+}
+
+.reach-card.potential .reach-number {
+    color: var(--accent-green);
+}
+
+.reach-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.reach-arrow {
+    color: var(--text-muted);
+}
+
+/* Volume & Priority Badges */
+.volume-badge {
+    display: inline-block;
+    background: rgba(232, 116, 12, 0.1);
+    color: var(--accent-yellow);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.priority-critical {
+    background: rgba(201, 53, 53, 0.12);
+    color: var(--accent-red);
+}
+
+.priority-high {
+    background: rgba(232, 116, 12, 0.12);
+    color: var(--accent-yellow);
+}
+
+.priority-medium {
+    background: rgba(123, 45, 95, 0.12);
+    color: var(--accent-purple);
+}
+
+.priority-low {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+}
+
+.keyword-volume {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+
 .top-keywords-section {
     background: var(--bg-card);
     border: 1px solid var(--border);
