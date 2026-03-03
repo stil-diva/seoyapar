@@ -2,3 +2,4 @@ node_modules/
 .vercel/
 sample_products.xlsx
 create-sample.js
+.vercel

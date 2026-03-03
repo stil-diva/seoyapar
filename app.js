@@ -385,19 +385,53 @@ function closeModal() {
 
 // ===== Export Results =====
 $('exportResults').addEventListener('click', () => {
-    const exportData = analysisResults.map(r => ({
-        'Ürün Adı': r.name,
+    const stripHtml = str => str.replace(/<[^>]*>/g, '');
+
+    // Main report sheet
+    const exportData = analysisResults.map((r, i) => ({
+        '#': i + 1,
+        'Mevcut Ürün Adı': r.name,
+        '➜ Önerilen Ürün Adı': r.suggestedName !== r.name ? r.suggestedName : '✓ Değişiklik Gerekmez',
         'SEO Skoru': r.score,
-        'Durum': r.severity === 'critical' ? 'Kritik' : r.severity === 'warning' ? 'Uyarı' : 'İyi',
-        'Eksik Anahtar Kelimeler': r.missingKeywords.join(', '),
-        'Malzeme Sorunları': r.materialIssues.map(m => m.text).join(' | '),
-        'Kategori Sorunu': r.categoryIssues.map(c => c.text).join(' | '),
-        'Önerilen Ad': r.suggestedName !== r.name ? r.suggestedName : '',
-        'Öneri Sayısı': r.suggestions.length
+        'Durum': r.severity === 'critical' ? '🔴 Kritik' : r.severity === 'warning' ? '🟡 İyileştirmeli' : '🟢 İyi',
+        'Başlık Uzunluk Skoru': r.scoreBreakdown.length,
+        'Anahtar Kelime Skoru': r.scoreBreakdown.keywords,
+        'Malzeme Eşleşme Skoru': r.scoreBreakdown.materials,
+        'Kategori Uyum Skoru': r.scoreBreakdown.category,
+        'Yapısal Kalite Skoru': r.scoreBreakdown.structure,
+        'Eksik Anahtar Kelimeler': r.missingKeywords.join(', ') || 'Yok',
+        'Mevcut Anahtar Kelimeler': r.presentKeywords.join(', ') || 'Yok',
+        'Kategori Sorunu': r.categoryIssues.length > 0 ? r.categoryIssues.map(c => c.text).join('; ') : 'Yok',
+        'Malzeme Uyumsuzlukları': r.materialIssues.length > 0 ? r.materialIssues.map(m => `${m.material} → ${m.customerTerms[0]}`).join(', ') : 'Yok',
+        'Tüm Öneriler': r.suggestions.map((s, j) => `${j + 1}. ${stripHtml(s.text)}`).join('\n') || 'Öneri yok',
+        'Kategori': r.category || '',
+        'Ürün Açıklaması': r.description
     }));
+
     const ws = XLSX.utils.json_to_sheet(exportData);
+    // Set column widths
+    ws['!cols'] = [
+        { wch: 4 }, { wch: 40 }, { wch: 50 }, { wch: 10 }, { wch: 14 },
+        { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+        { wch: 30 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 60 },
+        { wch: 15 }, { wch: 60 }
+    ];
+
+    // Quick-copy sheet (just old name → new name)
+    const quickData = analysisResults
+        .filter(r => r.suggestedName !== r.name)
+        .map(r => ({
+            'Mevcut Ürün Adı': r.name,
+            'Önerilen Ürün Adı': r.suggestedName,
+            'SEO Skoru': r.score,
+            'Eksik Kelimeler': r.missingKeywords.join(', ')
+        }));
+    const wsQuick = XLSX.utils.json_to_sheet(quickData.length ? quickData : [{ 'Bilgi': 'Tüm ürün adları uygun durumda!' }]);
+    wsQuick['!cols'] = [{ wch: 40 }, { wch: 50 }, { wch: 10 }, { wch: 40 }];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'SEO Analiz Raporu');
+    XLSX.utils.book_append_sheet(wb, ws, 'Detaylı Rapor');
+    XLSX.utils.book_append_sheet(wb, wsQuick, 'Hızlı Düzenleme');
     XLSX.writeFile(wb, 'seo_analiz_raporu.xlsx');
 });
 
