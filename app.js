@@ -70,8 +70,8 @@ function showMapping() {
     $('mappingPreview').innerHTML = tableHtml;
 
     // Populate selects
-    const selects = ['colName', 'colDescription', 'colImage', 'colCategory'];
-    const optionalSelects = ['colImage', 'colCategory'];
+    const selects = ['colName', 'colDescription', 'colImage', 'colCategory', 'colStock'];
+    const optionalSelects = ['colImage', 'colCategory', 'colStock'];
     selects.forEach(selId => {
         const sel = $(selId);
         sel.innerHTML = '';
@@ -95,6 +95,7 @@ function autoDetectColumns() {
     const descKeywords = ['açıklama', 'description', 'ürün açıklama', 'detay', 'içerik', 'product description', 'özellik'];
     const imgKeywords = ['görsel', 'resim', 'image', 'foto', 'url', 'img', 'picture', 'media'];
     const catKeywords = ['kategori', 'category', 'tür', 'tip', 'type', 'grup'];
+    const stockKeywords = ['stok', 'stock', 'miktar', 'adet', 'envanter', 'inventory', 'quantity'];
 
     headers.forEach((h, i) => {
         const hl = h.toLowerCase();
@@ -102,6 +103,7 @@ function autoDetectColumns() {
         if (descKeywords.some(k => hl.includes(k))) $('colDescription').value = i;
         if (imgKeywords.some(k => hl.includes(k))) $('colImage').value = i;
         if (catKeywords.some(k => hl.includes(k))) $('colCategory').value = i;
+        if (stockKeywords.some(k => hl.includes(k))) $('colStock').value = i;
     });
 }
 
@@ -125,34 +127,116 @@ function runAnalysis() {
         return;
     }
 
+    // SEO tips to rotate during loading
+    const seoTips = [
+        'Anahtar kelimeler başlığın başına yakın olmalı — Google ilk kelimelere daha çok önem verir.',
+        'Trendyol\'da 80 karakterden uzun başlıklar kesilir. İdeal aralık: 50-80 karakter.',
+        'Uzun kuyruklu anahtar kelimeler (3+ kelime) daha az rekabet, daha yüksek dönüşüm sağlar.',
+        'Malzeme bilgisi (viskon, keten, pamuklu) başlıkta olmalı — müşteriler kumaş tipine göre arar.',
+        '"Büyük beden" anahtar kelimesi aylık 90.500 aranıyor. Eğer ürününüz büyük bedense mutlaka ekleyin.',
+        'Renk bilgisi başlıkta olmalı — "siyah elbise" araması "elbise" aramasından 3x daha yüksek dönüşüm sağlar.',
+        'Google Autocomplete, gerçek kullanıcıların ne yazdığını gösterir — en güvenilir veri kaynağıdır.',
+        'Hepsiburada\'da kategori kelimesi başlıkta yoksa ürün ilgili kategoride listelenmeyebilir.',
+        'Ürün başlığında gereksiz kodlar (285057, SKU) kullanmayın — müşteri aramaz, karakter israfıdır.',
+        '"Esnek pantolon" aylık 4.400, "streç pantolon" aylık 4.400 aranıyor — ikisi de değerli kelimeler.',
+    ];
+
     loadingOverlay.style.display = 'flex';
-    const loadingText = loadingOverlay.querySelector('p');
+    const elTitle = $('loadingTitle');
+    const elStatus = $('loadingStatus');
+    const elFill = $('loadingProgressFill');
+    const elPercent = $('loadingPercent');
+    const elElapsed = $('loadingElapsed');
+    const elTip = document.getElementById('loadingTip');
+    const step1 = $('step1'), step2 = $('step2'), step3 = $('step3');
+
+    // Timer
+    const startTime = Date.now();
+    const timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        elElapsed.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }, 1000);
+
+    // Tip rotation
+    let tipIndex = 0;
+    const tipInterval = setInterval(() => {
+        tipIndex = (tipIndex + 1) % seoTips.length;
+        const tipText = elTip.querySelector('.tip-text');
+        elTip.style.animation = 'none';
+        tipText.textContent = seoTips[tipIndex];
+        requestAnimationFrame(() => { elTip.style.animation = 'tip-fade 0.5s ease'; });
+    }, 6000);
+
+    function setProgress(pct) {
+        elFill.style.width = pct + '%';
+        elPercent.textContent = Math.round(pct) + '%';
+    }
+
+    // Stock column
+    const stockCol = parseInt($('colStock').value);
 
     setTimeout(async () => {
         const products = rawData.map(row => ({
             name: String(row[nameCol] || '').trim(),
             description: String(row[descCol] || '').trim(),
             image: imgCol >= 0 ? String(row[imgCol] || '').trim() : '',
-            category: catCol >= 0 ? String(row[catCol] || '').trim() : ''
+            category: catCol >= 0 ? String(row[catCol] || '').trim() : '',
+            stock: stockCol >= 0 ? String(row[stockCol] || '').trim() : ''
         })).filter(p => p.name);
 
-        // Step 1: Basic SEO analysis
-        loadingText.textContent = 'Ürünler analiz ediliyor...';
-        analysisResults = products.map(p => analyzeProduct(p));
+        // Step 1: Basic SEO analysis (10% of progress)
+        step1.classList.add('active');
+        elTitle.textContent = 'SEO Analizi Çalışıyor';
+        elStatus.textContent = `${products.length} ürün analiz ediliyor...`;
+        setProgress(5);
 
-        // Step 2: Google Autocomplete long-tail keyword research
-        loadingText.textContent = 'Google arama verileri alınıyor...';
+        await new Promise(r => setTimeout(r, 100)); // Let UI render
+        analysisResults = products.map((p, i) => {
+            const result = analyzeProduct(p);
+            result.stock = p.stock;
+            return result;
+        });
+        setProgress(15);
+        step1.classList.remove('active');
+        step1.classList.add('done');
+
+        // Step 2: Google Autocomplete long-tail keyword research (15% → 85%)
+        step2.classList.add('active');
+        elTitle.textContent = 'Google Araştırması';
+        elStatus.textContent = 'Uzun kuyruklu anahtar kelimeler araştırılıyor...';
         try {
             await researchAllProducts(products, analysisResults, (current, total) => {
-                loadingText.textContent = `Google arama verileri alınıyor... ${current}/${total}`;
+                const pct = 15 + (current / total) * 70;
+                setProgress(pct);
+                elStatus.textContent = `Google arama verileri: ${current}/${total} ürün`;
             });
         } catch (e) {
             console.warn('Google Autocomplete araması başarısız:', e);
         }
+        step2.classList.remove('active');
+        step2.classList.add('done');
 
+        // Step 3: Report generation
+        step3.classList.add('active');
+        elTitle.textContent = 'Rapor Hazırlanıyor';
+        elStatus.textContent = 'Sonuçlar derleniyor...';
+        setProgress(90);
         const stats = generateOverallStats(analysisResults);
+        setProgress(100);
+        elStatus.textContent = 'Tamamlandı!';
+
+        clearInterval(timerInterval);
+        clearInterval(tipInterval);
+
+        await new Promise(r => setTimeout(r, 600)); // Brief pause at 100%
 
         loadingOverlay.style.display = 'none';
+        // Reset loading UI
+        step1.className = 'loading-step active'; step2.className = 'loading-step'; step3.className = 'loading-step';
+        setProgress(0);
+
         mappingSection.style.display = 'none';
         resultsSection.style.display = 'block';
         headerStats.style.display = 'flex';
@@ -210,12 +294,49 @@ function renderResults(stats) {
     renderBulkEdit();
     renderProductCards(analysisResults);
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    // Show stock filters if stock data exists
+    const hasStock = analysisResults.some(r => r.stock && r.stock.trim() !== '');
+    $('stockFilters').style.display = hasStock ? 'flex' : 'none';
+
+    // Severity filter
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            // Reset stock filter
+            document.querySelectorAll('.filter-btn[data-stock]').forEach(b => b.classList.remove('active'));
             const filter = btn.dataset.filter;
             const filtered = filter === 'all' ? analysisResults : analysisResults.filter(r => r.severity === filter);
+            renderProductCards(filtered);
+        });
+    });
+
+    // Stock filter
+    document.querySelectorAll('.filter-btn[data-stock]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const wasActive = btn.classList.contains('active');
+            document.querySelectorAll('.filter-btn[data-stock]').forEach(b => b.classList.remove('active'));
+            if (wasActive) {
+                // Deactivate — show all (respecting severity filter)
+                const activeFilter = document.querySelector('.filter-btn[data-filter].active');
+                const sf = activeFilter ? activeFilter.dataset.filter : 'all';
+                const filtered = sf === 'all' ? analysisResults : analysisResults.filter(r => r.severity === sf);
+                renderProductCards(filtered);
+                return;
+            }
+            btn.classList.add('active');
+            const stockFilter = btn.dataset.stock;
+            const isInStock = (s) => {
+                if (!s) return false;
+                const sl = s.toLowerCase().trim();
+                if (sl === '0' || sl === '' || sl === 'yok' || sl === 'hayır' || sl === 'no' || sl === 'false') return false;
+                const num = parseFloat(sl);
+                if (!isNaN(num) && num <= 0) return false;
+                return true; // "var", "evet", positive numbers, etc.
+            };
+            const filtered = analysisResults.filter(r =>
+                stockFilter === 'instock' ? isInStock(r.stock) : !isInStock(r.stock)
+            );
             renderProductCards(filtered);
         });
     });

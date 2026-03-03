@@ -141,6 +141,10 @@
                         <label>Kategori Sütunu <span class="optional">(opsiyonel)</span></label>
                         <select id="colCategory" class="mapping-select"></select>
                     </div>
+                    <div class="mapping-field">
+                        <label>Stok Sütunu <span class="optional">(opsiyonel)</span></label>
+                        <select id="colStock" class="mapping-select"></select>
+                    </div>
                 </div>
                 <div class="mapping-actions">
                     <button class="btn btn-secondary" id="backToUpload">
@@ -174,6 +178,10 @@
                         <button class="filter-btn" data-filter="critical">Kritik</button>
                         <button class="filter-btn" data-filter="warning">Uyarı</button>
                         <button class="filter-btn" data-filter="good">İyi</button>
+                    </div>
+                    <div class="filter-group stock-filters" id="stockFilters" style="display:none">
+                        <button class="filter-btn" data-stock="instock">📦 Stokta Var</button>
+                        <button class="filter-btn" data-stock="outofstock">🚫 Stokta Yok</button>
                     </div>
                     <button class="btn btn-secondary btn-sm" id="exportResults">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
@@ -277,9 +285,61 @@
 
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay" style="display:none;">
-        <div class="loading-spinner">
-            <div class="spinner-ring"></div>
-            <p>Ürünler analiz ediliyor...</p>
+        <div class="loading-content">
+            <!-- Animated orbital rings -->
+            <div class="loading-orbitals">
+                <div class="orbital-ring ring-1"></div>
+                <div class="orbital-ring ring-2"></div>
+                <div class="orbital-ring ring-3"></div>
+                <div class="orbital-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32"
+                        height="32">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Progress info -->
+            <div class="loading-info">
+                <h3 class="loading-title" id="loadingTitle">Analiz Başlıyor</h3>
+                <p class="loading-status" id="loadingStatus">Ürünler hazırlanıyor...</p>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="loading-progress-wrap">
+                <div class="loading-progress-bar">
+                    <div class="loading-progress-fill" id="loadingProgressFill" style="width:0%"></div>
+                </div>
+                <div class="loading-progress-info">
+                    <span class="loading-percent" id="loadingPercent">0%</span>
+                    <span class="loading-elapsed" id="loadingElapsed">0:00</span>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <div class="loading-steps">
+                <div class="loading-step active" id="step1">
+                    <div class="step-dot"></div>
+                    <span>SEO Analizi</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="loading-step" id="step2">
+                    <div class="step-dot"></div>
+                    <span>Google Araştırması</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="loading-step" id="step3">
+                    <div class="step-dot"></div>
+                    <span>Rapor Oluşturma</span>
+                </div>
+            </div>
+
+            <!-- SEO Tips -->
+            <div class="loading-tip" id="loadingTip">
+                <span class="tip-icon">💡</span>
+                <span class="tip-text">Anahtar kelimeler başlığın başına yakın olmalı — Google ilk kelimelere daha çok
+                    önem verir.</span>
+            </div>
         </div>
     </div>
 
