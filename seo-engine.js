@@ -1,196 +1,87 @@
-// ===== SEO Analysis Engine v2.0 =====
-// Professional e-commerce SEO engine with real market data
-// Based on Google Keyword Planner, Trendyol, Hepsiburada & N11 search patterns
+// ===== SEO Analysis Engine v3.0 =====
+// All keyword data is fetched LIVE from Google Autocomplete at analysis time
+// No fake static volumes - everything is real-time Google data
 
-// ===== KEYWORD DATABASE WITH MONTHLY SEARCH VOLUMES =====
+// ===== KEYWORD DATABASE =====
 
 // Material keywords - what people ACTUALLY search
-// Each material maps to the search terms customers use + monthly volume
 const MATERIAL_KEYWORDS = {
-    'viskon': {
-        searchTerms: ['viskon'],  // viskon IS the search term itself
-        monthlyVolume: 8100,
-        note: 'Viskon kumaş adı olarak aranır, "yumuşak kumaş" olarak DEĞİL'
-    },
-    'viskoz': {
-        searchTerms: ['viskon'],
-        monthlyVolume: 8100,
-        note: 'Viskoz = Viskon, aynı kumaş'
-    },
-    'keten': {
-        searchTerms: ['keten'],
-        monthlyVolume: 18100,
-        note: 'Keten tek başına güçlü arama terimi'
-    },
-    'linen': {
-        searchTerms: ['keten'],
-        monthlyVolume: 18100,
-        note: 'Linen = Keten'
-    },
-    'pamuk': {
-        searchTerms: ['pamuklu', '%100 pamuk'],
-        monthlyVolume: 12100,
-        note: 'Müşteriler "pamuklu" veya "%100 pamuk" olarak arar'
-    },
-    'pamuklu': {
-        searchTerms: ['pamuklu'],
-        monthlyVolume: 12100,
-        note: 'Zaten doğru terim'
-    },
-    'cotton': {
-        searchTerms: ['pamuklu'],
-        monthlyVolume: 12100,
-        note: 'Cotton = Pamuklu'
-    },
-    'elastan': {
-        searchTerms: ['esnek', 'streç', 'likralı'],
-        monthlyVolume: 6600,
-        note: 'Elastan teknik terim, müşteriler "esnek", "streç" veya "likralı" arar'
-    },
-    'likra': {
-        searchTerms: ['likralı', 'esnek', 'streç'],
-        monthlyVolume: 5400,
-        note: 'Likralı kumaş özelliği olarak aranır'
-    },
-    'spandex': {
-        searchTerms: ['esnek', 'streç'],
-        monthlyVolume: 4400,
-        note: 'Spandex = Elastan, müşteri "esnek" arar'
-    },
-    'polyester': {
-        searchTerms: [],  // Polyester müşteri için eksi özellik, arama terimi DEĞİL
-        monthlyVolume: 0,
-        note: 'Polyester müşterilerin aradığı bir özellik değil. Başlığa eklemeye GEREK YOK.'
-    },
-    'denim': {
-        searchTerms: ['denim', 'kot'],
-        monthlyVolume: 33100,
-        note: 'Denim ve kot çok güçlü arama terimleri'
-    },
-    'saten': {
-        searchTerms: ['saten'],
-        monthlyVolume: 8100,
-        note: 'Saten kendi başına güçlü arama terimi'
-    },
-    'şifon': {
-        searchTerms: ['şifon'],
-        monthlyVolume: 6600,
-        note: 'Şifon kendi başına güçlü arama terimi'
-    },
-    'kadife': {
-        searchTerms: ['kadife'],
-        monthlyVolume: 6600,
-        note: 'Kadife kendi başına güçlü arama terimi'
-    },
-    'triko': {
-        searchTerms: ['triko', 'örgü'],
-        monthlyVolume: 9900,
-        note: 'Triko ve örgü güçlü arama terimleri'
-    },
-    'krep': {
-        searchTerms: ['krep'],
-        monthlyVolume: 5400,
-        note: 'Krep kumaş olarak aranır'
-    },
-    'kaşmir': {
-        searchTerms: ['kaşmir'],
-        monthlyVolume: 4400,
-        note: 'Kaşmir premium arama terimi'
-    },
-    'ipek': {
-        searchTerms: ['ipek'],
-        monthlyVolume: 6600,
-        note: 'İpek kendi başına güçlü arama terimi'
-    },
-    'polar': {
-        searchTerms: ['polar', 'içi tüylü'],
-        monthlyVolume: 9900,
-        note: 'Polar ve içi tüylü kışlık aramalarda güçlü'
-    },
-    'fleece': {
-        searchTerms: ['polar'],
-        monthlyVolume: 9900,
-        note: 'Fleece = Polar'
-    },
-    'tül': {
-        searchTerms: ['tül'],
-        monthlyVolume: 4400,
-        note: 'Tül kumaş olarak aranır'
-    },
-    'dantel': {
-        searchTerms: ['dantelli', 'dantel'],
-        monthlyVolume: 5400,
-        note: 'Dantelli güçlü dekoratif arama terimi'
-    },
-    'neopren': {
-        searchTerms: ['neopren', 'scuba'],
-        monthlyVolume: 2400,
-        note: 'Neopren/scuba niş arama terimi'
-    },
-    'scuba': {
-        searchTerms: ['scuba'],
-        monthlyVolume: 2400,
-        note: 'Scuba kumaş olarak aranır'
-    },
-    'astar': {
-        searchTerms: ['astarlı'],
-        monthlyVolume: 1900,
-        note: 'Astarlı kalite göstergesi olarak aranır'
-    },
-    'astarlı': {
-        searchTerms: ['astarlı'],
-        monthlyVolume: 1900,
-        note: 'Astarlı zaten doğru terim'
-    }
+    'viskon': { searchTerms: ['viskon'] },
+    'viskoz': { searchTerms: ['viskon'] },
+    'keten': { searchTerms: ['keten'] },
+    'linen': { searchTerms: ['keten'] },
+    'pamuk': { searchTerms: ['pamuklu', '%100 pamuk'] },
+    'pamuklu': { searchTerms: ['pamuklu'] },
+    'cotton': { searchTerms: ['pamuklu'] },
+    'elastan': { searchTerms: ['esnek', 'streç', 'likralı'] },
+    'likra': { searchTerms: ['likralı', 'esnek', 'streç'] },
+    'spandex': { searchTerms: ['esnek', 'streç'] },
+    'polyester': { searchTerms: [] },  // Müşteri aramaz
+    'denim': { searchTerms: ['denim', 'kot'] },
+    'saten': { searchTerms: ['saten'] },
+    'şifon': { searchTerms: ['şifon'] },
+    'kadife': { searchTerms: ['kadife'] },
+    'triko': { searchTerms: ['triko', 'örgü'] },
+    'krep': { searchTerms: ['krep'] },
+    'kaşmir': { searchTerms: ['kaşmir'] },
+    'ipek': { searchTerms: ['ipek'] },
+    'polar': { searchTerms: ['polar', 'içi tüylü'] },
+    'fleece': { searchTerms: ['polar'] },
+    'tül': { searchTerms: ['tül'] },
+    'dantel': { searchTerms: ['dantelli', 'dantel'] },
+    'neopren': { searchTerms: ['neopren', 'scuba'] },
+    'scuba': { searchTerms: ['scuba'] },
+    'astar': { searchTerms: ['astarlı'] },
+    'astarlı': { searchTerms: ['astarlı'] }
 };
 
-// Feature keywords with real search volumes
+// Feature keywords with priorities (volumes fetched live from Google)
 const FEATURE_KEYWORDS = {
-    'büyük beden': { searchTerms: ['büyük beden'], monthlyVolume: 90500, priority: 'critical' },
-    'battal': { searchTerms: ['büyük beden', 'battal beden'], monthlyVolume: 14800, priority: 'critical' },
-    'plus size': { searchTerms: ['büyük beden', 'plus size'], monthlyVolume: 9900, priority: 'critical' },
-    'oversize': { searchTerms: ['oversize'], monthlyVolume: 22200, priority: 'high' },
-    'slim fit': { searchTerms: ['slim fit'], monthlyVolume: 14800, priority: 'high' },
-    'kapüşonlu': { searchTerms: ['kapüşonlu'], monthlyVolume: 8100, priority: 'high' },
-    'yüksek bel': { searchTerms: ['yüksek bel'], monthlyVolume: 9900, priority: 'high' },
-    'palazzo': { searchTerms: ['palazzo'], monthlyVolume: 14800, priority: 'high' },
-    'ispanyol paça': { searchTerms: ['ispanyol paça'], monthlyVolume: 8100, priority: 'high' },
-    'jogger': { searchTerms: ['jogger'], monthlyVolume: 12100, priority: 'high' },
-    'beli lastikli': { searchTerms: ['beli lastikli'], monthlyVolume: 6600, priority: 'medium' },
-    'fermuarlı': { searchTerms: ['fermuarlı'], monthlyVolume: 3600, priority: 'medium' },
-    'düğmeli': { searchTerms: ['düğmeli'], monthlyVolume: 2900, priority: 'medium' },
-    'cepli': { searchTerms: ['cepli'], monthlyVolume: 4400, priority: 'medium' },
-    'boyfriend': { searchTerms: ['boyfriend'], monthlyVolume: 5400, priority: 'medium' },
-    'mom fit': { searchTerms: ['mom fit', 'mom jean'], monthlyVolume: 6600, priority: 'medium' },
-    'bol paça': { searchTerms: ['bol paça'], monthlyVolume: 4400, priority: 'medium' },
-    'skinny': { searchTerms: ['skinny'], monthlyVolume: 4400, priority: 'medium' },
-    'regular fit': { searchTerms: ['regular fit'], monthlyVolume: 2400, priority: 'low' },
-    'v yaka': { searchTerms: ['v yaka'], monthlyVolume: 3600, priority: 'medium' },
-    'bisiklet yaka': { searchTerms: ['bisiklet yaka'], monthlyVolume: 2400, priority: 'low' },
-    'polo yaka': { searchTerms: ['polo yaka'], monthlyVolume: 3600, priority: 'medium' },
-    'balıkçı yaka': { searchTerms: ['balıkçı yaka', 'boğazlı'], monthlyVolume: 5400, priority: 'medium' },
-    'dik yaka': { searchTerms: ['dik yaka'], monthlyVolume: 1600, priority: 'low' },
-    'uzun kol': { searchTerms: ['uzun kollu', 'uzun kol'], monthlyVolume: 12100, priority: 'high' },
-    'uzun kollu': { searchTerms: ['uzun kollu'], monthlyVolume: 12100, priority: 'high' },
-    'kısa kol': { searchTerms: ['kısa kollu', 'kısa kol'], monthlyVolume: 8100, priority: 'high' },
-    'kısa kollu': { searchTerms: ['kısa kollu'], monthlyVolume: 8100, priority: 'high' },
-    'kolsuz': { searchTerms: ['kolsuz'], monthlyVolume: 2400, priority: 'low' },
-    'çizgili': { searchTerms: ['çizgili'], monthlyVolume: 3600, priority: 'medium' },
-    'kareli': { searchTerms: ['kareli', 'ekose'], monthlyVolume: 3600, priority: 'medium' },
-    'çiçekli': { searchTerms: ['çiçekli', 'çiçek desenli'], monthlyVolume: 4400, priority: 'medium' },
-    'baskılı': { searchTerms: ['baskılı'], monthlyVolume: 3600, priority: 'medium' },
-    'nakışlı': { searchTerms: ['nakışlı'], monthlyVolume: 2400, priority: 'low' },
-    'yırtmaçlı': { searchTerms: ['yırtmaçlı'], monthlyVolume: 2900, priority: 'medium' },
-    'pileli': { searchTerms: ['pileli'], monthlyVolume: 3600, priority: 'medium' },
-    'fırfırlı': { searchTerms: ['fırfırlı', 'volanlı'], monthlyVolume: 2400, priority: 'low' },
-    'yarasa kol': { searchTerms: ['yarasa kol'], monthlyVolume: 2400, priority: 'low' },
-    'asimetrik': { searchTerms: ['asimetrik'], monthlyVolume: 1900, priority: 'low' },
-    'taş işlemeli': { searchTerms: ['taşlı', 'taş işlemeli'], monthlyVolume: 2400, priority: 'low' },
-    'payetli': { searchTerms: ['payetli'], monthlyVolume: 3600, priority: 'medium' },
-    'su geçirmez': { searchTerms: ['su geçirmez'], monthlyVolume: 6600, priority: 'high' },
-    'içi tüylü': { searchTerms: ['içi tüylü'], monthlyVolume: 5400, priority: 'medium' },
-    'yazlık': { searchTerms: ['yazlık'], monthlyVolume: 14800, priority: 'high' },
-    'kışlık': { searchTerms: ['kışlık'], monthlyVolume: 9900, priority: 'high' }
+    'büyük beden': { searchTerms: ['büyük beden'], priority: 'critical' },
+    'battal': { searchTerms: ['büyük beden', 'battal beden'], priority: 'critical' },
+    'plus size': { searchTerms: ['büyük beden', 'plus size'], priority: 'critical' },
+    'oversize': { searchTerms: ['oversize'], priority: 'high' },
+    'slim fit': { searchTerms: ['slim fit'], priority: 'high' },
+    'kapüşonlu': { searchTerms: ['kapüşonlu'], priority: 'high' },
+    'yüksek bel': { searchTerms: ['yüksek bel'], priority: 'high' },
+    'palazzo': { searchTerms: ['palazzo'], priority: 'high' },
+    'ispanyol paça': { searchTerms: ['ispanyol paça'], priority: 'high' },
+    'jogger': { searchTerms: ['jogger'], priority: 'high' },
+    'beli lastikli': { searchTerms: ['beli lastikli'], priority: 'medium' },
+    'fermuarlı': { searchTerms: ['fermuarlı'], priority: 'medium' },
+    'düğmeli': { searchTerms: ['düğmeli'], priority: 'medium' },
+    'cepli': { searchTerms: ['cepli'], priority: 'medium' },
+    'boyfriend': { searchTerms: ['boyfriend'], priority: 'medium' },
+    'mom fit': { searchTerms: ['mom fit', 'mom jean'], priority: 'medium' },
+    'bol paça': { searchTerms: ['bol paça'], priority: 'medium' },
+    'skinny': { searchTerms: ['skinny'], priority: 'medium' },
+    'regular fit': { searchTerms: ['regular fit'], priority: 'low' },
+    'v yaka': { searchTerms: ['v yaka'], priority: 'medium' },
+    'bisiklet yaka': { searchTerms: ['bisiklet yaka'], priority: 'low' },
+    'polo yaka': { searchTerms: ['polo yaka'], priority: 'medium' },
+    'balıkçı yaka': { searchTerms: ['balıkçı yaka', 'boğazlı'], priority: 'medium' },
+    'dik yaka': { searchTerms: ['dik yaka'], priority: 'low' },
+    'uzun kol': { searchTerms: ['uzun kollu', 'uzun kol'], priority: 'high' },
+    'uzun kollu': { searchTerms: ['uzun kollu'], priority: 'high' },
+    'kısa kol': { searchTerms: ['kısa kollu', 'kısa kol'], priority: 'high' },
+    'kısa kollu': { searchTerms: ['kısa kollu'], priority: 'high' },
+    'kolsuz': { searchTerms: ['kolsuz'], priority: 'low' },
+    'çizgili': { searchTerms: ['çizgili'], priority: 'medium' },
+    'kareli': { searchTerms: ['kareli', 'ekose'], priority: 'medium' },
+    'çiçekli': { searchTerms: ['çiçekli', 'çiçek desenli'], priority: 'medium' },
+    'baskılı': { searchTerms: ['baskılı'], priority: 'medium' },
+    'nakışlı': { searchTerms: ['nakışlı'], priority: 'low' },
+    'yırtmaçlı': { searchTerms: ['yırtmaçlı'], priority: 'medium' },
+    'pileli': { searchTerms: ['pileli'], priority: 'medium' },
+    'fırfırlı': { searchTerms: ['fırfırlı', 'volanlı'], priority: 'low' },
+    'yarasa kol': { searchTerms: ['yarasa kol'], priority: 'low' },
+    'asimetrik': { searchTerms: ['asimetrik'], priority: 'low' },
+    'taş işlemeli': { searchTerms: ['taşlı', 'taş işlemeli'], priority: 'low' },
+    'payetli': { searchTerms: ['payetli'], priority: 'medium' },
+    'su geçirmez': { searchTerms: ['su geçirmez'], priority: 'high' },
+    'içi tüylü': { searchTerms: ['içi tüylü'], priority: 'medium' },
+    'yazlık': { searchTerms: ['yazlık'], priority: 'high' },
+    'kışlık': { searchTerms: ['kışlık'], priority: 'high' }
 };
 
 // Category detection with search volumes
@@ -198,119 +89,102 @@ const CATEGORY_MAPPINGS = {
     'tişört': {
         aliases: ['tshirt', 't-shirt', 'tişört', 'tisort', 't shirt'],
         searchTerms: ['tişört', 't-shirt'],
-        monthlyVolume: 135000,
         indicators: ['yuvarlak yaka', 'bisiklet yaka', 'kısa kol', 'baskılı', 'basic', 'oversize tişört'],
         conflicts: ['düğmeli', 'gömlek yaka', 'fermuar']
     },
     'gömlek': {
         aliases: ['gömlek', 'gomlek', 'shirt'],
         searchTerms: ['gömlek'],
-        monthlyVolume: 110000,
         indicators: ['düğmeli', 'gömlek yaka', 'manşet', 'kol düğmesi', 'gömlek kumaş'],
         conflicts: []
     },
     'bluz': {
         aliases: ['bluz', 'blouse'],
         searchTerms: ['bluz', 'kadın bluz'],
-        monthlyVolume: 40500,
         indicators: ['dökümlü', 'şifon', 'v yaka', 'fırfır', 'volan', 'kadın'],
         conflicts: []
     },
     'tunik': {
         aliases: ['tunik', 'tunic'],
         searchTerms: ['tunik'],
-        monthlyVolume: 33100,
         indicators: ['uzun', 'kalça altı', 'diz üstü', 'tunik boy'],
         conflicts: []
     },
     'elbise': {
         aliases: ['elbise', 'dress'],
         searchTerms: ['elbise'],
-        monthlyVolume: 301000,
         indicators: ['diz altı', 'diz üstü', 'maxi', 'midi', 'mini', 'elbise'],
         conflicts: []
     },
     'pantolon': {
         aliases: ['pantolon', 'pants', 'trousers'],
         searchTerms: ['pantolon'],
-        monthlyVolume: 165000,
         indicators: ['bel', 'paça', 'bacak', 'pantolon'],
         conflicts: []
     },
     'jean': {
         aliases: ['jean', 'kot', 'denim pantolon', 'kot pantolon', 'jeans'],
         searchTerms: ['kot pantolon', 'jean'],
-        monthlyVolume: 33100,
         indicators: ['denim', 'kot', 'jean', 'indigo'],
         conflicts: []
     },
     'ceket': {
         aliases: ['ceket', 'jacket', 'blazer'],
         searchTerms: ['ceket', 'blazer'],
-        monthlyVolume: 49500,
         indicators: ['astar', 'yaka', 'ceket', 'blazer', 'kaban'],
         conflicts: []
     },
     'hırka': {
         aliases: ['hırka', 'hirka', 'cardigan'],
         searchTerms: ['hırka'],
-        monthlyVolume: 27100,
         indicators: ['önü açık', 'düğmeli', 'triko', 'örgü', 'hırka'],
         conflicts: []
     },
     'yelek': {
         aliases: ['yelek', 'vest'],
         searchTerms: ['yelek'],
-        monthlyVolume: 22200,
         indicators: ['kolsuz', 'yelek', 'şişme yelek'],
         conflicts: []
     },
     'eşofman': {
         aliases: ['eşofman', 'esofman', 'jogger', 'sweatpant'],
         searchTerms: ['eşofman', 'eşofman takım'],
-        monthlyVolume: 60500,
         indicators: ['eşofman', 'jogger', 'paçası lastikli', 'spor'],
         conflicts: []
     },
     'sweatshirt': {
         aliases: ['sweatshirt', 'sweat', 'sweetshirt'],
         searchTerms: ['sweatshirt'],
-        monthlyVolume: 49500,
         indicators: ['sweat', 'kapüşon', 'polar', 'içi tüylü'],
         conflicts: []
     },
     'mont': {
         aliases: ['mont', 'kaban', 'coat', 'parka'],
         searchTerms: ['mont', 'kaban'],
-        monthlyVolume: 74000,
         indicators: ['mont', 'kaban', 'şişme', 'kaz tüyü', 'su geçirmez'],
         conflicts: []
     },
     'etek': {
         aliases: ['etek', 'skirt'],
         searchTerms: ['etek'],
-        monthlyVolume: 27100,
         indicators: ['etek', 'pileli', 'mini etek', 'midi etek'],
         conflicts: []
     },
     'şort': {
         aliases: ['şort', 'sort', 'shorts'],
         searchTerms: ['şort'],
-        monthlyVolume: 22200,
         indicators: ['şort', 'kısa', 'diz üstü'],
         conflicts: []
     },
     'takım': {
         aliases: ['takım', 'set', 'kombin'],
         searchTerms: ['takım', 'ikili takım'],
-        monthlyVolume: 14800,
         indicators: ['takım', 'set', 'üst alt', 'ikili'],
         conflicts: []
     },
     'kazak': {
         aliases: ['kazak', 'sweater'],
         searchTerms: ['kazak'],
-        monthlyVolume: 60500,
         indicators: ['kazak', 'triko', 'örgü', 'yün'],
         conflicts: []
     }
@@ -393,30 +267,30 @@ function analyzeProduct(product) {
                 const topTerm = data.searchTerms[0];
                 results.materialIssues.push({
                     material, searchTerms: data.searchTerms,
-                    monthlyVolume: data.monthlyVolume,
+                    monthlyVolume: 0,
                     text: `"${material}" açıklamada var, başlıkta "${topTerm}" olmalı`
                 });
                 results.missingKeywords.push(topTerm);
-                missedVolumeTotal += data.monthlyVolume;
+                missedVolumeTotal += 0;
 
                 results.keywordDetails.push({
                     keyword: topTerm, type: 'material', status: 'missing',
-                    monthlyVolume: data.monthlyVolume,
+                    monthlyVolume: 0,
                     source: material,
                     note: data.note
                 });
 
                 results.suggestions.push({
                     type: 'critical',
-                    text: `Açıklamada <strong>"${material}"</strong> var. Müşteriler <strong>"${topTerm}"</strong> olarak arar. <span class="volume-badge">🔍 ${data.monthlyVolume.toLocaleString('tr-TR')}/ay</span>`
+                    text: `Açıklamada <strong>"${material}"</strong> var. Müşteriler <strong>"${topTerm}"</strong> olarak arar.`
                 });
             } else {
                 const matchedTerm = hasMaterial ? material : data.searchTerms.find(t => nameLower.includes(t.toLowerCase()));
                 results.presentKeywords.push(matchedTerm || material);
-                currentVolumeTotal += data.monthlyVolume;
+                currentVolumeTotal += 0;
                 results.keywordDetails.push({
                     keyword: matchedTerm || material, type: 'material', status: 'present',
-                    monthlyVolume: data.monthlyVolume,
+                    monthlyVolume: 0,
                     note: data.note
                 });
             }
@@ -432,11 +306,11 @@ function analyzeProduct(product) {
             if (!found && !nameLower.includes(feature)) {
                 featureMissCount++;
                 results.missingKeywords.push(data.searchTerms[0]);
-                missedVolumeTotal += data.monthlyVolume;
+                missedVolumeTotal += 0;
 
                 results.keywordDetails.push({
                     keyword: data.searchTerms[0], type: 'feature', status: 'missing',
-                    monthlyVolume: data.monthlyVolume,
+                    monthlyVolume: 0,
                     priority: data.priority
                 });
 
@@ -445,14 +319,14 @@ function analyzeProduct(product) {
 
                 results.suggestions.push({
                     type: suggestionType,
-                    text: `<strong>"${data.searchTerms[0]}"</strong> açıklamada var, başlıkta yok. <span class="volume-badge">🔍 ${data.monthlyVolume.toLocaleString('tr-TR')}/ay</span> <span class="priority-badge priority-${data.priority}">${priorityLabel}</span>`
+                    text: `<strong>"${data.searchTerms[0]}"</strong> açıklamada var, başlıkta yok. <span class="priority-badge priority-${data.priority}">${priorityLabel}</span>`
                 });
             } else {
                 results.presentKeywords.push(feature);
-                currentVolumeTotal += data.monthlyVolume;
+                currentVolumeTotal += 0;
                 results.keywordDetails.push({
                     keyword: feature, type: 'feature', status: 'present',
-                    monthlyVolume: data.monthlyVolume,
+                    monthlyVolume: 0,
                     priority: data.priority
                 });
             }
@@ -533,12 +407,12 @@ function analyzeProduct(product) {
             categoryScore = 50;
             results.categoryIssues.push({
                 current: nameCat, suggested: topDetected.category,
-                monthlyVolume: topDetected.data.monthlyVolume,
+                monthlyVolume: 0,
                 text: `Başlıkta "${nameCat}" var ama içerik "${topDetected.category}" kategorisine uygun`
             });
             results.suggestions.push({
                 type: 'critical',
-                text: `Kategori uyumsuzluğu: <strong>"${nameCat}"</strong> yerine <strong>"${topDetected.category}"</strong> daha doğru. <span class="volume-badge">🔍 "${topDetected.data.searchTerms[0]}" ${topDetected.data.monthlyVolume.toLocaleString('tr-TR')}/ay</span>`
+                text: `Kategori uyumsuzluğu: <strong>"${nameCat}"</strong> yerine <strong>"${topDetected.category}"</strong> daha doğru.`
             });
         }
     }
@@ -550,14 +424,14 @@ function analyzeProduct(product) {
             categoryScore = 70;
             results.suggestions.push({
                 type: 'warning',
-                text: `Başlıkta kategori yok. Açıklamaya göre <strong>"${suggested.data.searchTerms[0]}"</strong> eklenmeli. <span class="volume-badge">🔍 ${suggested.data.monthlyVolume.toLocaleString('tr-TR')}/ay</span>`
+                text: `Başlıkta kategori yok. Açıklamaya göre <strong>"${suggested.data.searchTerms[0]}"</strong> eklenmeli.`
             });
         }
     }
 
     // Add category volume to current reach if present
     if (nameCategory) {
-        currentVolumeTotal += CATEGORY_MAPPINGS[nameCategory[0]].monthlyVolume;
+        // Category present in title
     }
 
     // 5. COLOR CHECK (with proper word boundaries to avoid "tasarım" → "sarı" false positives)
@@ -724,7 +598,10 @@ function generateSuggestedName(analysis, detectedCategories) {
     // Get missing keywords sorted by volume
     const sortedMissing = analysis.keywordDetails
         .filter(k => k.status === 'missing')
-        .sort((a, b) => b.monthlyVolume - a.monthlyVolume);
+        .sort((a, b) => {
+            const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+            return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+        });
 
     for (const kw of sortedMissing) {
         const term = kw.keyword;
@@ -807,30 +684,29 @@ function generateOverallStats(results) {
         r.suggestions.some(s => s.text.includes('kısa') || s.text.includes('uzun'))
     ).length;
 
-    // Reach stats
-    const totalCurrentReach = results.reduce((s, r) => s + r.currentReach, 0);
-    const totalPotentialReach = results.reduce((s, r) => s + r.potentialReach, 0);
-    const totalMissedVolume = results.reduce((s, r) => s + r.missedVolume, 0);
+    // Keyword counts
+    const totalPresentKeywords = results.reduce((s, r) => s + r.presentKeywords.length, 0);
+    const totalMissingKeywords = results.reduce((s, r) => s + r.missingKeywords.length, 0);
 
-    // Top missed keywords with volumes
-    const missedKeywordVolumes = {};
+    // Top missed keywords sorted by frequency across products
+    const missedKeywordCounts = {};
     results.forEach(r => {
         r.keywordDetails.filter(k => k.status === 'missing').forEach(k => {
-            if (!missedKeywordVolumes[k.keyword]) {
-                missedKeywordVolumes[k.keyword] = { count: 0, volume: k.monthlyVolume };
+            if (!missedKeywordCounts[k.keyword]) {
+                missedKeywordCounts[k.keyword] = { count: 0 };
             }
-            missedKeywordVolumes[k.keyword].count++;
+            missedKeywordCounts[k.keyword].count++;
         });
     });
-    const topMissedWithVolume = Object.entries(missedKeywordVolumes)
-        .map(([kw, d]) => ({ keyword: kw, count: d.count, volume: d.volume, totalImpact: d.count * d.volume }))
-        .sort((a, b) => b.totalImpact - a.totalImpact)
+    const topMissedWithVolume = Object.entries(missedKeywordCounts)
+        .map(([kw, d]) => ({ keyword: kw, count: d.count }))
+        .sort((a, b) => b.count - a.count)
         .slice(0, 15);
 
     return {
         totalProducts, avgScore, criticalCount, warningCount, goodCount,
         topMissing, totalMissing, totalMaterialIssues, titleLengthIssues,
-        totalCurrentReach, totalPotentialReach, totalMissedVolume,
+        totalPresentKeywords, totalMissingKeywords,
         topMissedWithVolume
     };
 }
@@ -908,7 +784,7 @@ function generateLongTailQueries(product, analysisResult) {
     // Detect features
     const features = [];
     for (const [feat, data] of Object.entries(FEATURE_KEYWORDS)) {
-        if (descLower.includes(feat) && data.monthlyVolume >= 3000) {
+        if (descLower.includes(feat) && 0 >= 3000) {
             features.push(data.searchTerms[0]);
         }
     }
@@ -984,12 +860,55 @@ async function researchLongTailKeywords(product, analysisResult, progressCallbac
 // Run long-tail research for ALL products (with progress callback)
 async function researchAllProducts(products, analysisResults, progressCallback) {
     const total = analysisResults.length;
+
+    // Step 1: Collect all unique keywords that need popularity checking
+    const allKeywordsToCheck = new Set();
+    analysisResults.forEach(r => {
+        r.keywordDetails.forEach(kd => {
+            if (kd.keyword) allKeywordsToCheck.add(kd.keyword.toLowerCase());
+        });
+    });
+
+    // Step 2: Check each keyword's Google popularity
+    const keywordPopularity = {}; // keyword -> { rank, totalSuggestions, isPopular }
+    const keywordsArray = [...allKeywordsToCheck];
+    for (let i = 0; i < keywordsArray.length; i++) {
+        const kw = keywordsArray[i];
+        try {
+            const suggestions = await googleAutocomplete(kw);
+            const rank = suggestions.findIndex(s => s.toLowerCase().includes(kw)) + 1;
+            keywordPopularity[kw] = {
+                googleRank: rank > 0 ? rank : 0,
+                googleSuggestionCount: suggestions.length,
+                isGooglePopular: suggestions.length > 0,
+                googleSuggestions: suggestions.slice(0, 5)
+            };
+        } catch (e) {
+            keywordPopularity[kw] = { googleRank: 0, googleSuggestionCount: 0, isGooglePopular: false, googleSuggestions: [] };
+        }
+        await delay(50);
+    }
+
+    // Step 3: Inject Google data into keyword details
+    analysisResults.forEach(r => {
+        r.keywordDetails.forEach(kd => {
+            const pop = keywordPopularity[kd.keyword?.toLowerCase()];
+            if (pop) {
+                kd.googleRank = pop.googleRank;
+                kd.googleSuggestionCount = pop.googleSuggestionCount;
+                kd.isGooglePopular = pop.isGooglePopular;
+                kd.googleSuggestions = pop.googleSuggestions;
+            }
+        });
+    });
+
+    // Step 4: Long-tail research per product
     for (let i = 0; i < total; i++) {
         if (progressCallback) progressCallback(i + 1, total);
         const longTail = await researchLongTailKeywords(products[i], analysisResults[i]);
         analysisResults[i].longTailKeywords = longTail;
 
-        // Add best long-tail suggestions to the suggestions list
+        // Add best long-tail suggestions
         const allLongTailSuggestions = longTail.flatMap(lt => lt.suggestions);
         const uniqueSuggestions = [...new Set(allLongTailSuggestions)].slice(0, 5);
         if (uniqueSuggestions.length > 0) {

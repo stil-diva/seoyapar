@@ -274,10 +274,10 @@ function renderResults(stats) {
     let reachEl = document.getElementById('reachComparison');
     if (!reachEl) { reachEl = document.createElement('div'); reachEl.id = 'reachComparison'; dashboard.after(reachEl); }
     reachEl.innerHTML = `<div class="reach-comparison">
-        <div class="reach-card"><div class="reach-icon">📊</div><div class="reach-number">${stats.totalCurrentReach.toLocaleString('tr-TR')}</div><div class="reach-label">Mevcut Aylık Erişim</div></div>
+        <div class="reach-card"><div class="reach-icon">📊</div><div class="reach-number">${stats.totalPresentKeywords || 0}</div><div class="reach-label">Başlıkta Mevcut Kelime</div></div>
         <div class="reach-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-        <div class="reach-card potential"><div class="reach-icon">🚀</div><div class="reach-number">${stats.totalPotentialReach.toLocaleString('tr-TR')}</div><div class="reach-label">Potansiyel Erişim</div></div>
-        <div class="reach-card missed"><div class="reach-icon">⚡</div><div class="reach-number" style="color:var(--accent-yellow)">+${stats.totalMissedVolume.toLocaleString('tr-TR')}</div><div class="reach-label">Kaçırılan Hacim/Ay</div></div>
+        <div class="reach-card potential"><div class="reach-icon">🚀</div><div class="reach-number">${(stats.totalPresentKeywords || 0) + (stats.totalMissingKeywords || 0)}</div><div class="reach-label">Potansiyel Kelime</div></div>
+        <div class="reach-card missed"><div class="reach-icon">⚡</div><div class="reach-number" style="color:var(--accent-yellow)">+${stats.totalMissingKeywords || 0}</div><div class="reach-label">Eksik Anahtar Kelime</div></div>
     </div>`;
 
     // Keywords cloud with volumes
@@ -287,9 +287,9 @@ function renderResults(stats) {
     if (kwData.length > 0) {
         kwData.forEach(item => {
             const tag = document.createElement('div');
-            const cls = item.volume >= 10000 ? 'critical-tag' : item.volume >= 5000 ? 'warning-tag' : 'info-tag';
+            const cls = item.count >= 10 ? 'critical-tag' : item.count >= 5 ? 'warning-tag' : 'info-tag';
             tag.className = `keyword-tag ${cls}`;
-            tag.innerHTML = `${item.keyword} <span class="keyword-volume">🔍 ${item.volume.toLocaleString('tr-TR')}/ay</span> <span class="keyword-count">×${item.count}</span>`;
+            tag.innerHTML = `${item.keyword} <span class="keyword-count">×${item.count} üründe</span>`;
             cloud.appendChild(tag);
         });
     }
@@ -395,7 +395,7 @@ function renderBulkEdit() {
                     <div style="font-size:0.75rem;color:var(--text-muted);text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</div>
                     <input style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;font-family:inherit" value="${escapeHtml(r.suggestedName)}" data-idx="${analysisResults.indexOf(r)}" onchange="analysisResults[this.dataset.idx].suggestedName=this.value" />
                 </div>
-                <span style="font-size:0.7rem;color:var(--accent-yellow);white-space:nowrap">+${r.missedVolume.toLocaleString('tr-TR')}/ay</span>
+                <span style="font-size:0.7rem;color:var(--accent-yellow);white-space:nowrap">${r.missingKeywords.length} eksik</span>
             </div>`).join('')}
         </div>`;
 }
@@ -676,7 +676,7 @@ function exportBulkEdit() {
             'Mevcut Ürün Adı': r.name,
             'Düzeltilmiş Ürün Adı': r.suggestedName,
             'SEO Skoru': r.score,
-            'Kaçırılan Hacim/Ay': r.missedVolume,
+            'Eksik Kelime Sayısı': r.missingKeywords.length,
             'Eksik Kelimeler': r.missingKeywords.join(', ')
         }));
     if (data.length === 0) return alert('Düzeltme gereken ürün yok!');
