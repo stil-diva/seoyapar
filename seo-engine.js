@@ -194,7 +194,7 @@ const CATEGORY_MAPPINGS = {
 const COLORS = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'lacivert', 'bej', 'kahverengi', 'bordo', 'haki', 'ekru', 'krem', 'lila', 'fuşya', 'turkuaz', 'indigo', 'antrasit', 'nude', 'pudra', 'mint', 'hardal', 'kiremit', 'mürdüm', 'petrol'];
 
 // Ideal title length range
-const TITLE_LENGTH = { min: 40, ideal_min: 50, ideal_max: 80, max: 120 };
+const TITLE_LENGTH = { min: 30, ideal_min: 40, ideal_max: 75, max: 80 };
 
 // ===== CORE ANALYSIS FUNCTION =====
 function analyzeProduct(product) {
@@ -237,7 +237,7 @@ function analyzeProduct(product) {
         lengthScore = Math.max(40, 100 - ((len - TITLE_LENGTH.max) * 2));
         results.suggestions.push({
             type: 'warning',
-            text: `Başlık çok uzun (${len} karakter). Trendyol ve Hepsiburada ${TITLE_LENGTH.max} karakterden sonra keser. İdeal: ${TITLE_LENGTH.ideal_min}-${TITLE_LENGTH.ideal_max} karakter.`
+            text: `Başlık çok uzun (${len} karakter). Trendyol 80 karakterden sonra keser! Maksimum 80 karakter olmalı.`
         });
     } else if (len >= TITLE_LENGTH.ideal_min && len <= TITLE_LENGTH.ideal_max) {
         lengthScore = 100;
@@ -614,38 +614,52 @@ function generateSuggestedName(analysis, detectedCategories) {
         }
     }
 
-    // 4. Reconstruct title in proper order
-    const parts = [];
+    // 4. Reconstruct title in proper order (MAX 80 CHARS)
+    const MAX_TITLE_LENGTH = 80;
 
-    // [1] Size modifier
-    const finalSize = sizeModifier || addSize;
-    if (finalSize) parts.push(titleCase(finalSize));
+    function buildTitle(featuresExtra, materialsExtra) {
+        const parts = [];
+        const finalSize = sizeModifier || addSize;
+        if (finalSize) parts.push(titleCase(finalSize));
 
-    // [2] Features (existing + new)
-    const existingFeatureWords = remainingWords;
-    if (addFeatures.length > 0) {
-        // Insert new features before existing descriptors
-        addFeatures.forEach(f => parts.push(titleCase(f)));
+        // Features (new additions + existing)
+        featuresExtra.forEach(f => parts.push(titleCase(f)));
+        if (remainingWords) parts.push(remainingWords);
+
+        // Color
+        if (color) parts.push(titleCase(color));
+
+        // Materials (existing + new additions)
+        const allMats = [...new Set([...materials, ...materialsExtra])];
+        allMats.forEach(m => parts.push(titleCase(m)));
+
+        // Category
+        if (category) parts.push(titleCase(category));
+
+        // SKU (always kept)
+        if (sku) parts.push(sku);
+
+        return parts.join(' ').replace(/\s+/g, ' ').trim();
     }
-    if (existingFeatureWords) parts.push(existingFeatureWords);
 
-    // [3] Color
-    if (color) parts.push(titleCase(color));
+    // Build full title first
+    let result = buildTitle(addFeatures, addMaterials);
 
-    // [4] Materials (existing + new)
-    const allMats = [...new Set([...materials, ...addMaterials])];
-    allMats.forEach(m => parts.push(titleCase(m)));
+    // If over 80 chars, progressively drop lowest-priority additions
+    if (result.length > MAX_TITLE_LENGTH) {
+        // Try dropping added features one by one (from end = lowest priority)
+        let trimFeatures = [...addFeatures];
+        let trimMaterials = [...addMaterials];
 
-    // [5] Category
-    if (category) {
-        parts.push(titleCase(category));
+        while (result.length > MAX_TITLE_LENGTH && trimFeatures.length > 0) {
+            trimFeatures.pop();
+            result = buildTitle(trimFeatures, trimMaterials);
+        }
+        while (result.length > MAX_TITLE_LENGTH && trimMaterials.length > 0) {
+            trimMaterials.pop();
+            result = buildTitle(trimFeatures, trimMaterials);
+        }
     }
-
-    // [6] SKU
-    if (sku) parts.push(sku);
-
-    // Clean up: remove double spaces, trim
-    let result = parts.join(' ').replace(/\s+/g, ' ').trim();
 
     // If nothing changed meaningfully, return original
     if (result.toLowerCase() === originalName.toLowerCase() || sortedMissing.length === 0) {
