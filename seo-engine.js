@@ -618,47 +618,171 @@ function analyzeProduct(product) {
     return results;
 }
 
-// ===== SUGGESTED NAME GENERATOR =====
+// ===== SMART SUGGESTED NAME GENERATOR =====
+// Proper Turkish e-commerce title order: [Beden] [Özellikler] [Renk] [Malzeme] [Kategori] [SKU]
 function generateSuggestedName(analysis, detectedCategories) {
-    let base = analysis.name;
-    const nameLower = base.toLowerCase();
-    const additions = [];
+    const originalName = analysis.name;
+    const nameLower = originalName.toLowerCase();
+    const descLower = (analysis.description || '').toLowerCase();
 
-    // Fix category if mismatched
-    if (analysis.categoryIssues.length > 0) {
-        const issue = analysis.categoryIssues[0];
-        const currentCatData = CATEGORY_MAPPINGS[issue.current];
-        if (currentCatData) {
-            for (const alias of currentCatData.aliases) {
-                if (nameLower.includes(alias)) {
-                    const regex = new RegExp(alias, 'gi');
-                    base = base.replace(regex, issue.suggested.charAt(0).toUpperCase() + issue.suggested.slice(1));
-                    break;
-                }
-            }
+    // 1. Extract SKU/product code (numbers at end, typically 5-7 digits)
+    const skuMatch = originalName.match(/\s+(\d{4,8})\s*$/);
+    const sku = skuMatch ? skuMatch[1] : '';
+    let workingName = sku ? originalName.replace(/\s+\d{4,8}\s*$/, '').trim() : originalName;
+
+    // 2. Detect and extract existing components from the title
+    const SIZE_KEYWORDS = ['büyük beden', 'battal beden', 'battal', 'plus size', 'oversize', 'slim fit', 'regular fit', 'mom fit', 'boyfriend'];
+    const ALL_COLORS = [...COLORS];
+
+    // All known category names
+    const allCategoryNames = [];
+    for (const [cat, data] of Object.entries(CATEGORY_MAPPINGS)) {
+        allCategoryNames.push(cat);
+        data.aliases.forEach(a => { if (!allCategoryNames.includes(a)) allCategoryNames.push(a); });
+    }
+
+    // All known material search terms  
+    const allMaterialTerms = [];
+    for (const [mat, data] of Object.entries(MATERIAL_KEYWORDS)) {
+        allMaterialTerms.push(mat);
+        data.searchTerms.forEach(t => { if (!allMaterialTerms.includes(t)) allMaterialTerms.push(t); });
+    }
+
+    // All known feature terms
+    const allFeatureTerms = Object.keys(FEATURE_KEYWORDS);
+
+    // Parse existing title into components
+    let sizeModifier = '';
+    let category = '';
+    let color = '';
+    let materials = [];
+    let features = [];
+    let remainingWords = [];
+
+    const wLower = workingName.toLowerCase();
+
+    // Extract size modifier
+    for (const sz of SIZE_KEYWORDS) {
+        if (wLower.includes(sz)) {
+            sizeModifier = sz;
+            workingName = workingName.replace(new RegExp(sz.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+            break;
         }
     }
 
-    // Sort missing keywords by volume (highest first)
+    // Extract category (find the longest matching category)
+    const sortedCats = allCategoryNames.sort((a, b) => b.length - a.length);
+    for (const cat of sortedCats) {
+        const catRegex = new RegExp(`\\b${cat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        if (catRegex.test(workingName)) {
+            category = cat;
+            workingName = workingName.replace(catRegex, '').trim();
+            break;
+        }
+    }
+
+    // Extract colors
+    for (const c of ALL_COLORS) {
+        const cRegex = new RegExp(`(?:^|\\s)${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`, 'gi');
+        if (cRegex.test(workingName)) {
+            color = c;
+            workingName = workingName.replace(new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '').trim();
+            break; // Usually only one color
+        }
+    }
+
+    // Extract materials
+    const sortedMaterials = allMaterialTerms.sort((a, b) => b.length - a.length);
+    for (const mat of sortedMaterials) {
+        const matRegex = new RegExp(`\\b${mat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        if (matRegex.test(workingName)) {
+            materials.push(mat);
+            workingName = workingName.replace(matRegex, '').trim();
+        }
+    }
+
+    // Everything remaining is features/descriptors
+    remainingWords = workingName.replace(/\s+/g, ' ').trim();
+
+    // 3. Determine what to ADD from the analysis
+    let addSize = '';
+    let addMaterials = [];
+    let addFeatures = [];
+
+    // Fix category if mismatched
+    if (analysis.categoryIssues.length > 0) {
+        category = analysis.categoryIssues[0].suggested;
+    }
+
+    // If no category detected, try from analysis
+    if (!category && detectedCategories.length > 0) {
+        category = detectedCategories[0].category;
+    }
+
+    // Get missing keywords sorted by volume
     const sortedMissing = analysis.keywordDetails
         .filter(k => k.status === 'missing')
         .sort((a, b) => b.monthlyVolume - a.monthlyVolume);
 
-    // Add top 3 missing keywords by volume
-    let added = 0;
     for (const kw of sortedMissing) {
-        if (added >= 3) break;
         const term = kw.keyword;
-        if (!base.toLowerCase().includes(term.toLowerCase())) {
-            additions.push(term.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
-            added++;
+        if (SIZE_KEYWORDS.some(s => term.includes(s)) && !sizeModifier) {
+            addSize = term;
+        } else if (kw.type === 'material' && addMaterials.length < 2) {
+            addMaterials.push(term);
+        } else if (addFeatures.length < 2) {
+            addFeatures.push(term);
         }
     }
 
-    if (additions.length > 0) {
-        return base + ' ' + additions.join(' ');
+    // 4. Reconstruct title in proper order
+    const parts = [];
+
+    // [1] Size modifier
+    const finalSize = sizeModifier || addSize;
+    if (finalSize) parts.push(titleCase(finalSize));
+
+    // [2] Features (existing + new)
+    const existingFeatureWords = remainingWords;
+    if (addFeatures.length > 0) {
+        // Insert new features before existing descriptors
+        addFeatures.forEach(f => parts.push(titleCase(f)));
     }
-    return base;
+    if (existingFeatureWords) parts.push(existingFeatureWords);
+
+    // [3] Color
+    if (color) parts.push(titleCase(color));
+
+    // [4] Materials (existing + new)
+    const allMats = [...new Set([...materials, ...addMaterials])];
+    allMats.forEach(m => parts.push(titleCase(m)));
+
+    // [5] Category
+    if (category) {
+        parts.push(titleCase(category));
+    }
+
+    // [6] SKU
+    if (sku) parts.push(sku);
+
+    // Clean up: remove double spaces, trim
+    let result = parts.join(' ').replace(/\s+/g, ' ').trim();
+
+    // If nothing changed meaningfully, return original
+    if (result.toLowerCase() === originalName.toLowerCase() || sortedMissing.length === 0) {
+        return originalName;
+    }
+
+    return result;
+}
+
+function titleCase(str) {
+    return str.split(' ').map(w => {
+        if (w.startsWith('%')) return w; // %100 pamuk
+        if (/^\d/.test(w)) return w; // numbers
+        if (w.length <= 2) return w; // short words (v, vs)
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }).join(' ');
 }
 
 // ===== OVERALL STATS =====
