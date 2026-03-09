@@ -849,22 +849,24 @@ function generateLongTailQueries(product, analysisResult) {
 
     // Detect size modifier
     let sizeModifier = '';
-    if (descLower.includes('büyük beden') || descLower.includes('battal') || descLower.includes('plus size')) {
+    if (descLower.includes('büyük beden') || descLower.includes('battal') || nameLower.includes('büyük beden')) {
+        sizeModifier = 'büyük beden';
+    } else if (descLower.includes('plus size') || nameLower.includes('plus size')) {
         sizeModifier = 'büyük beden';
     }
 
     // Detect materials
     const materials = [];
     for (const [mat, data] of Object.entries(MATERIAL_KEYWORDS)) {
-        if (descLower.includes(mat) && data.searchTerms.length > 0) {
+        if ((descLower.includes(mat) || nameLower.includes(mat)) && data.searchTerms.length > 0) {
             materials.push(data.searchTerms[0]);
         }
     }
 
-    // Detect features
+    // Detect features from name and description
     const features = [];
     for (const [feat, data] of Object.entries(FEATURE_KEYWORDS)) {
-        if (descLower.includes(feat) && 0 >= 3000) {
+        if (descLower.includes(feat) || nameLower.includes(feat)) {
             features.push(data.searchTerms[0]);
         }
     }
@@ -874,9 +876,10 @@ function generateLongTailQueries(product, analysisResult) {
     if (descLower.includes('kadın') || nameLower.includes('kadın')) gender = 'kadın';
     else if (descLower.includes('erkek') || nameLower.includes('erkek')) gender = 'erkek';
 
-    // Generate combos (most specific → least specific)
+    // IMPORTANT: Never search bare category alone (e.g., "kazak" returns "kazakistan")
+    // Always qualify with at least gender, size, or "modelleri"
     if (category) {
-        // [gender] + [size] + [material] + [feature] + category
+        // Most specific → least specific (all qualified!)
         if (sizeModifier && materials.length > 0) {
             queries.push(`${sizeModifier} ${materials[0]} ${category}`);
         }
@@ -887,16 +890,21 @@ function generateLongTailQueries(product, analysisResult) {
             queries.push(`${sizeModifier} ${category}`);
         }
         if (materials.length > 0) {
-            queries.push(`${materials[0]} ${category}`);
+            queries.push(`${gender || 'kadın'} ${materials[0]} ${category}`);
         }
         if (features.length > 0) {
-            queries.push(`${features[0]} ${category}`);
+            queries.push(`${gender || 'kadın'} ${features[0]} ${category}`);
         }
         if (gender) {
             queries.push(`${gender} ${category}`);
+            queries.push(`${gender} ${category} modelleri`);
+        } else {
+            // No gender detected, use "kadın" as default for fashion
+            queries.push(`kadın ${category}`);
+            queries.push(`kadın ${category} modelleri`);
         }
-        // Category alone
-        queries.push(category);
+        // Category + modelleri (safer than bare category)
+        queries.push(`${category} modelleri`);
     }
 
     // Deduplicate and limit
@@ -904,26 +912,65 @@ function generateLongTailQueries(product, analysisResult) {
     return unique.slice(0, 6);
 }
 
+// Filter irrelevant autocomplete suggestions (e.g., "kazakistan" for "kazak")
+const IRRELEVANT_WORDS = [
+    'kazakistan', 'başkenti', 'nüfusu', 'bayrağı', 'para birimi', 'ingilizce',
+    'hava durumu', 'nerede', 'haritası', 'cumhurbaşkanı', 'dili', 'tarihi',
+    'vikipedi', 'sözlük', 'ne demek', 'çeviri', 'nasıl yazılır',
+    'futbol', 'maç', 'film', 'dizi', 'şarkı', 'oyun'
+];
+
+function isRelevantSuggestion(suggestion, category) {
+    const lower = suggestion.toLowerCase();
+    // Filter out suggestions with clearly irrelevant words
+    if (IRRELEVANT_WORDS.some(w => lower.includes(w))) return false;
+    // Filter out suggestions that are just the category with a country/geography suffix
+    if (category && lower.startsWith(category) && !lower.includes('model') && !lower.includes('kadın') &&
+        !lower.includes('erkek') && !lower.includes('beden') && !lower.includes('giy') &&
+        !lower.includes('kumaş') && !lower.includes('fiyat') && !lower.includes('indirim') &&
+        !lower.includes('online') && !lower.includes('trend') && !lower.includes('stil') &&
+        !lower.includes('kış') && !lower.includes('yaz') && !lower.includes('yazlık') &&
+        !lower.includes('renk') && !lower.includes('triko') && !lower.includes('viskon') &&
+        !lower.includes('pamuk') && !lower.includes('kapüşon') && !lower.includes('fermu') &&
+        !lower.includes('düğme') && !lower.includes('uzun') && !lower.includes('kısa')) {
+        // If the suggestion doesn't contain any fashion-related word after the category, check length
+        const afterCategory = lower.replace(category, '').trim();
+        if (afterCategory.length > 0 && afterCategory.split(' ').length <= 2) {
+            // Short suffix that's not fashion-related — likely irrelevant
+            return false;
+        }
+    }
+    return true;
+}
+
 // Run long-tail keyword research for a single product
 async function researchLongTailKeywords(product, analysisResult, progressCallback) {
     const queries = generateLongTailQueries(product, analysisResult);
     const longTailResults = [];
 
+    // Detect category for filtering
+    const nameLower = (product.name || '').toLowerCase();
+    let category = '';
+    for (const [cat, data] of Object.entries(CATEGORY_MAPPINGS)) {
+        if (data.aliases.some(a => nameLower.includes(a))) { category = cat; break; }
+    }
+
     for (let i = 0; i < queries.length; i++) {
         const query = queries[i];
         try {
             const suggestions = await googleAutocomplete(query);
-            if (suggestions.length > 0) {
+            // Filter out irrelevant suggestions
+            const filtered = suggestions.filter(s => isRelevantSuggestion(s, category));
+            if (filtered.length > 0) {
                 longTailResults.push({
                     query,
-                    suggestions: suggestions.slice(0, 8),
-                    // Check which suggestions are covered by the title
-                    covered: suggestions.filter(s =>
+                    suggestions: filtered.slice(0, 8),
+                    covered: filtered.filter(s =>
                         s.split(' ').every(word =>
                             word.length < 3 || product.name.toLowerCase().includes(word)
                         )
                     ),
-                    missing: suggestions.filter(s =>
+                    missing: filtered.filter(s =>
                         !s.split(' ').every(word =>
                             word.length < 3 || product.name.toLowerCase().includes(word)
                         )
