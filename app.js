@@ -566,12 +566,130 @@ function showProductModal(r) {
         </div>`;
     }).join('');
 
-    // Keywords
-    const kwHtml = r.presentKeywords.map(k =>
-        `<span class="keyword-pill present">✓ ${k}</span>`
-    ).concat(r.missingKeywords.map(k =>
-        `<span class="keyword-pill missing">✗ ${k}</span>`
-    )).join('');
+    // ===== KEYWORD DETAILS WITH VOLUMES =====
+    const hasApiData = r.keywordDataSource === 'google_keyword_planner';
+    const keywordDetails = r.keywordDetails || [];
+
+    function formatVolume(vol) {
+        if (!vol || vol === 0) return '—';
+        if (vol >= 10000) return (vol / 1000).toFixed(0) + 'K';
+        if (vol >= 1000) return (vol / 1000).toFixed(1) + 'K';
+        return vol.toLocaleString('tr-TR');
+    }
+
+    function competitionBadge(comp, compIndex) {
+        if (!comp || comp === 'UNSPECIFIED') return '<span class="comp-badge comp-unknown">—</span>';
+        const labels = { LOW: 'Düşük', MEDIUM: 'Orta', HIGH: 'Yüksek' };
+        const cls = comp === 'LOW' ? 'comp-low' : comp === 'MEDIUM' ? 'comp-medium' : 'comp-high';
+        return `<span class="comp-badge ${cls}">${labels[comp] || comp}</span>`;
+    }
+
+    function popularityIndicator(kd) {
+        // If we have API data, use monthly volume
+        if (kd.monthlyVolume && kd.monthlyVolume > 0) {
+            return `<span class="vol-badge">${formatVolume(kd.monthlyVolume)}/ay</span>`;
+        }
+        // If we have autocomplete data, show popularity from Google Suggest
+        if (kd.isGooglePopular) {
+            if (kd.googleRank && kd.googleRank > 0) {
+                return `<span class="vol-badge vol-suggest">🔥 #${kd.googleRank} Google</span>`;
+            }
+            return `<span class="vol-badge vol-suggest">✓ Google'da popüler</span>`;
+        }
+        return '<span class="vol-badge vol-none">Veri yok</span>';
+    }
+
+    // Build keyword analysis table
+    let kwDetailsHtml = '';
+    const missingKws = keywordDetails.filter(k => k.status === 'missing');
+    const presentKws = keywordDetails.filter(k => k.status === 'present');
+    const skipKws = keywordDetails.filter(k => k.status === 'skip');
+
+    if (missingKws.length > 0) {
+        kwDetailsHtml += `<div class="kw-group kw-group-missing">
+            <div class="kw-group-title">❌ Eksik Anahtar Kelimeler <span class="kw-group-count">${missingKws.length}</span></div>
+            <div class="kw-table">
+                ${missingKws.map(kd => `<div class="kw-row kw-missing">
+                    <div class="kw-name">
+                        <strong>${kd.keyword}</strong>
+                        ${kd.source ? `<span class="kw-source">← ${kd.source}</span>` : ''}
+                        ${kd.note ? `<span class="kw-note">${kd.note}</span>` : ''}
+                    </div>
+                    <div class="kw-meta">
+                        ${popularityIndicator(kd)}
+                        ${hasApiData ? competitionBadge(kd.competition, kd.competitionIndex) : ''}
+                        ${kd.cpcHigh ? `<span class="cpc-badge">₺${kd.cpcHigh.toFixed(2)} CPC</span>` : ''}
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    if (presentKws.length > 0) {
+        kwDetailsHtml += `<div class="kw-group kw-group-present">
+            <div class="kw-group-title">✅ Mevcut Anahtar Kelimeler <span class="kw-group-count">${presentKws.length}</span></div>
+            <div class="kw-table">
+                ${presentKws.map(kd => `<div class="kw-row kw-present">
+                    <div class="kw-name"><strong>${kd.keyword}</strong></div>
+                    <div class="kw-meta">
+                        ${popularityIndicator(kd)}
+                        ${hasApiData ? competitionBadge(kd.competition, kd.competitionIndex) : ''}
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    // ===== LONG TAIL KEYWORDS (better display) =====
+    let longTailHtml = '';
+    if (r.longTailKeywords && r.longTailKeywords.length > 0) {
+        const allSuggestions = r.longTailKeywords.flatMap(lt =>
+            lt.suggestions.map(s => ({ text: s, query: lt.query }))
+        );
+        // Deduplicate
+        const seen = new Set();
+        const uniqueSuggestions = allSuggestions.filter(s => {
+            if (seen.has(s.text.toLowerCase())) return false;
+            seen.add(s.text.toLowerCase());
+            return true;
+        });
+
+        const nameLow = r.name.toLowerCase();
+        const covered = uniqueSuggestions.filter(s =>
+            s.text.toLowerCase().split(' ').filter(w => w.length >= 3).every(w => nameLow.includes(w))
+        );
+        const notCovered = uniqueSuggestions.filter(s =>
+            !s.text.toLowerCase().split(' ').filter(w => w.length >= 3).every(w => nameLow.includes(w))
+        );
+
+        longTailHtml = `<div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                🔍 Google'da Aranan İlgili Kelimeler
+                <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400"> (${uniqueSuggestions.length} sonuç)</span>
+            </div>
+            ${notCovered.length > 0 ? `
+            <div class="kw-group kw-group-missing" style="margin-bottom:1rem">
+                <div class="kw-group-title">💡 Başlığınızda Olmayan Popüler Aramalar <span class="kw-group-count">${notCovered.length}</span></div>
+                <div class="kw-table">
+                    ${notCovered.slice(0, 12).map(s => `<div class="kw-row kw-missing">
+                        <div class="kw-name"><strong>${s.text}</strong></div>
+                        <div class="kw-meta"><span class="vol-badge vol-suggest">Google Suggest</span></div>
+                    </div>`).join('')}
+                </div>
+            </div>` : ''}
+            ${covered.length > 0 ? `
+            <div class="kw-group kw-group-present">
+                <div class="kw-group-title">✅ Başlığınızla Eşleşen Aramalar <span class="kw-group-count">${covered.length}</span></div>
+                <div class="kw-table">
+                    ${covered.slice(0, 6).map(s => `<div class="kw-row kw-present">
+                        <div class="kw-name"><strong>${s.text}</strong></div>
+                        <div class="kw-meta"><span class="vol-badge vol-suggest">✓ Eşleşiyor</span></div>
+                    </div>`).join('')}
+                </div>
+            </div>` : ''}
+        </div>`;
+    }
 
     // Highlighted description
     let descHtml = escapeHtml(r.description);
@@ -585,7 +703,6 @@ function showProductModal(r) {
     let suggestedNameHtml = '';
     if (r.suggestedName !== r.name) {
         let display = escapeHtml(r.suggestedName);
-        // Highlight the additions
         const original = escapeHtml(r.name);
         if (display.startsWith(original)) {
             const added = display.slice(original.length);
@@ -599,12 +716,18 @@ function showProductModal(r) {
             </div>`;
     }
 
+    // Data source badge
+    const dataSourceBadge = hasApiData
+        ? '<span class="data-source-badge api">📊 Google Keyword Planner</span>'
+        : '<span class="data-source-badge suggest">🔍 Google Autocomplete</span>';
+
     mc.innerHTML = `
         <div class="modal-header">
             ${imgHtml}
             <div class="modal-title-area">
                 <div class="modal-product-name">${r.name}</div>
                 ${r.category ? `<span class="modal-category">${r.category}</span>` : ''}
+                ${dataSourceBadge}
             </div>
         </div>
         <div class="modal-score-section">
@@ -632,45 +755,15 @@ function showProductModal(r) {
             </div>
             <div class="suggestion-list">${suggestionsHtml}</div>
         </div>` : ''}
-        ${kwHtml ? `
+        ${kwDetailsHtml ? `
         <div class="modal-section">
             <div class="modal-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-                Anahtar Kelime Durumu
+                📊 Anahtar Kelime Analizi
             </div>
-            <div class="keywords-found">${kwHtml}</div>
+            ${kwDetailsHtml}
         </div>` : ''}
-        ${r.longTailKeywords && r.longTailKeywords.length > 0 ? `
-        <div class="modal-section">
-            <div class="modal-section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                🔍 Google'da Gerçek Aramalar (Uzun Kuyruklu Anahtar Kelimeler)
-            </div>
-            <div class="long-tail-results">
-                ${r.longTailKeywords.map(lt => `
-                    <div class="lt-query-group">
-                        <div class="lt-query-label">🔎 "${lt.query}"</div>
-                        <div class="lt-suggestions">
-                            ${lt.suggestions.map(s => {
-        const nameLow = r.name.toLowerCase();
-        const words = s.toLowerCase().split(' ').filter(w => w.length >= 3);
-        const covered = words.every(w => nameLow.includes(w));
-        return `<div class="lt-suggestion ${covered ? 'lt-covered' : 'lt-missing'}">
-                                    <span class="lt-icon">${covered ? '✅' : '❌'}</span>
-                                    <span class="lt-text">${s}</span>
-                                    <span class="lt-source">Google Suggest</span>
-                                </div>`;
-    }).join('')}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>` : ''}
-        ${r.googleSuggestions && r.googleSuggestions.length > 0 && !(r.longTailKeywords && r.longTailKeywords.length > 0) ? `
-        <div class="modal-section">
-            <div class="modal-section-title">🔍 Google Önerileri</div>
-            <div class="keywords-found">${r.googleSuggestions.map(s => `<span class="keyword-pill missing">💡 ${s}</span>`).join('')}</div>
-        </div>` : ''}
+        ${longTailHtml}
         <div class="modal-section">
             <div class="modal-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>

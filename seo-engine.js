@@ -501,10 +501,13 @@ function generateSuggestedName(analysis, detectedCategories) {
     const nameLower = originalName.toLowerCase();
     const descLower = (analysis.description || '').toLowerCase();
 
-    // 1. Extract SKU/product code (numbers at end, typically 5-7 digits)
-    const skuMatch = originalName.match(/\s+(\d{4,8})\s*$/);
+    // 1. Extract SKU/product code (numbers, typically 4-8 digits, or codes like E11103, T169)
+    // Check end of title first, then anywhere in title
+    const skuMatchEnd = originalName.match(/\s+(\d{4,8})\s*$/);
+    const skuMatchCode = originalName.match(/\s+([A-Z]?\d{4,8})\s*$/);
+    const skuMatch = skuMatchEnd || skuMatchCode;
     const sku = skuMatch ? skuMatch[1] : '';
-    let workingName = sku ? originalName.replace(/\s+\d{4,8}\s*$/, '').trim() : originalName;
+    let workingName = sku ? originalName.replace(new RegExp('\\s+' + sku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$'), '').trim() : originalName;
 
     // 2. Detect and extract existing components from the title
     const SIZE_KEYWORDS = ['büyük beden', 'battal beden', 'battal', 'plus size', 'oversize', 'slim fit', 'regular fit', 'mom fit', 'boyfriend'];
@@ -670,10 +673,15 @@ function generateSuggestedName(analysis, detectedCategories) {
 }
 
 function titleCase(str) {
+    // Special abbreviations that should be all uppercase
+    const UPPERCASE_WORDS = ['v', 'xl', 'xxl', 'xxxl', 'xs', 'sm', 'md', 'lg'];
+
     return str.split(' ').map(w => {
         if (w.startsWith('%')) return w; // %100 pamuk
         if (/^\d/.test(w)) return w; // numbers
-        if (w.length <= 2) return w; // short words (v, vs)
+        const wLower = w.toLowerCase();
+        if (UPPERCASE_WORDS.includes(wLower)) return w.toUpperCase(); // V → V, XL → XL
+        if (w.length <= 1) return w.toUpperCase(); // single char uppercase
         return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     }).join(' ');
 }
