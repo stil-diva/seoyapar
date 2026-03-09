@@ -930,22 +930,37 @@ const IRRELEVANT_WORDS = [
 
 function isRelevantSuggestion(suggestion, category, productGender) {
     const lower = suggestion.toLowerCase();
-    // Filter out suggestions with clearly irrelevant words
     if (IRRELEVANT_WORDS.some(w => lower.includes(w))) return false;
 
-    // Gender filter — don't show "erkek kazak" for a kadın product and vice versa
+    // Gender filter
     if (productGender === 'kadın' && lower.includes('erkek')) return false;
     if (productGender === 'erkek' && (lower.includes('kadın') || lower.includes('bayan'))) return false;
 
-    // Filter out non-product suggestions (DIY, recipes, etc.)
-    const NON_PRODUCT_WORDS = ['yapımı', 'yapılışı', 'tarifi', 'nasıl yapılır', 'dikimi', 'dikimine', 'örgü deseni', 'örme'];
-    if (NON_PRODUCT_WORDS.some(w => lower.includes(w))) return false;
+    // Non-product queries
+    const NON_PRODUCT = ['yapımı', 'yapılışı', 'tarifi', 'nasıl yapılır', 'dikimi', 'dikimine',
+        'örgü deseni', 'örme', 'nasıl', 'nedir', 'nerede', 'ne demek', 'tablosu', 'farkı',
+        'anne', 'çocuk', 'bebek', 'markaları', 'markası'];
+    if (NON_PRODUCT.some(w => lower.includes(w))) return false;
 
-    // Filter out brand-specific suggestions (zara, lcw etc are not useful for SEO)
-    const BRAND_WORDS = ['zara', 'h&m', 'lcw', 'lc waikiki', 'koton', 'mango', 'defacto', 'boyner'];
-    if (BRAND_WORDS.some(w => lower.includes(w))) return false;
+    // Brands
+    const BRANDS = ['zara', 'h&m', 'lcw', 'lc waikiki', 'koton', 'mango', 'defacto', 'boyner', 'trendyol', 'hepsiburada'];
+    if (BRANDS.some(w => lower.includes(w))) return false;
 
-    // Filter out suggestions that are just the category with a country/geography suffix
+    // Cross-category filter: elbise sorgusunda pantolon çıkmasın
+    if (category) {
+        const catEntry = CATEGORY_MAPPINGS[category];
+        const ownNames = catEntry ? [category, ...catEntry.aliases] : [category];
+        for (const [otherCat, otherData] of Object.entries(CATEGORY_MAPPINGS)) {
+            if (ownNames.includes(otherCat)) continue;
+            const otherNames = [otherCat, ...otherData.aliases];
+            for (const nm of otherNames) {
+                if (nm.length < 4 || ownNames.includes(nm)) continue;
+                if (lower.includes(nm)) return false;
+            }
+        }
+    }
+
+    // Generic suffix filter
     if (category && lower.startsWith(category) && !lower.includes('model') && !lower.includes('kadın') &&
         !lower.includes('erkek') && !lower.includes('beden') && !lower.includes('giy') &&
         !lower.includes('kumaş') && !lower.includes('fiyat') && !lower.includes('indirim') &&
@@ -954,10 +969,8 @@ function isRelevantSuggestion(suggestion, category, productGender) {
         !lower.includes('renk') && !lower.includes('triko') && !lower.includes('viskon') &&
         !lower.includes('pamuk') && !lower.includes('kapüşon') && !lower.includes('fermu') &&
         !lower.includes('düğme') && !lower.includes('uzun') && !lower.includes('kısa')) {
-        const afterCategory = lower.replace(category, '').trim();
-        if (afterCategory.length > 0 && afterCategory.split(' ').length <= 2) {
-            return false;
-        }
+        const after = lower.replace(category, '').trim();
+        if (after.length > 0 && after.split(' ').length <= 2) return false;
     }
     return true;
 }

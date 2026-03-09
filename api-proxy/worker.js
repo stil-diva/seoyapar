@@ -11,7 +11,7 @@
  *   ALLOWED_ORIGIN         - İzin verilen domain (ör: https://seoyapar.com)
  */
 
-const GOOGLE_ADS_API_VERSION = 'v17';
+const GOOGLE_ADS_API_VERSION = 'v16';
 const TURKISH_LANGUAGE_ID = '1037';  // languageConstants/1037
 const TURKEY_GEO_ID = '2792';        // geoTargetConstants/2792
 
@@ -42,7 +42,8 @@ export default {
                 return jsonResponse({
                     status: 'ok',
                     hasCredentials: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_DEVELOPER_TOKEN),
-                    version: '1.0'
+                    version: '2.0',
+                    apiVersion: GOOGLE_ADS_API_VERSION
                 }, 200, corsHeaders);
             }
 
@@ -59,13 +60,36 @@ export default {
                 return jsonResponse({ error: 'OAuth token failed. Check credentials.' }, 401, corsHeaders);
             }
 
-            // Step 2: Query Google Ads Keyword Planner
-            const volumeData = await getKeywordVolumes(kwList, accessToken, env);
+            // Step 2: Try generateKeywordHistoricalMetrics first (works better with test tokens)
+            let volumeData = null;
+            let apiMethod = '';
+
+            try {
+                volumeData = await getKeywordHistoricalMetrics(kwList, accessToken, env);
+                apiMethod = 'historicalMetrics';
+            } catch (e1) {
+                console.warn('Historical metrics failed, trying keyword ideas:', e1.message);
+                try {
+                    volumeData = await getKeywordIdeas(kwList, accessToken, env);
+                    apiMethod = 'keywordIdeas';
+                } catch (e2) {
+                    console.error('Both API methods failed:', e2.message);
+                    return jsonResponse({
+                        error: `API failed: ${e1.message} / ${e2.message}`,
+                        debugInfo: {
+                            method1Error: e1.message,
+                            method2Error: e2.message,
+                            customerId: env.GOOGLE_CUSTOMER_ID
+                        }
+                    }, 500, corsHeaders);
+                }
+            }
 
             return jsonResponse({
                 success: true,
                 data: volumeData,
                 source: 'google_keyword_planner',
+                method: apiMethod,
                 timestamp: new Date().toISOString()
             }, 200, corsHeaders);
 
@@ -97,8 +121,38 @@ async function getAccessToken(env) {
     return data.access_token;
 }
 
-// ===== Google Ads Keyword Planner API =====
-async function getKeywordVolumes(keywords, accessToken, env) {
+// ===== Method 1: generateKeywordHistoricalMetrics =====
+// This method works with specific keywords (exact match)
+async function getKeywordHistoricalMetrics(keywords, accessToken, env) {
+    const customerId = env.GOOGLE_CUSTOMER_ID.replace(/-/g, '');
+    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:generateKeywordHistoricalMetrics`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'developer-token': env.GOOGLE_DEVELOPER_TOKEN,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            keywords: keywords,
+            language: `languageConstants/${TURKISH_LANGUAGE_ID}`,
+            geoTargetConstants: [`geoTargetConstants/${TURKEY_GEO_ID}`],
+            keywordPlanNetwork: 'GOOGLE_SEARCH'
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Historical metrics API ${response.status}: ${errorText.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    return parseHistoricalResults(data, keywords);
+}
+
+// ===== Method 2: generateKeywordIdeas =====
+async function getKeywordIdeas(keywords, accessToken, env) {
     const customerId = env.GOOGLE_CUSTOMER_ID.replace(/-/g, '');
     const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:generateKeywordIdeas`;
 
@@ -116,21 +170,62 @@ async function getKeywordVolumes(keywords, accessToken, env) {
             keywordSeed: {
                 keywords: keywords
             },
-            // Historical metrics for the keyword itself (not ideas)
             keywordPlanNetwork: 'GOOGLE_SEARCH'
         })
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error('Keyword Planner API error:', errorText);
-        throw new Error(`Google Ads API error: ${response.status}`);
+        throw new Error(`Keyword Ideas API ${response.status}: ${errorText.substring(0, 200)}`);
     }
 
     const data = await response.json();
+    return parseIdeaResults(data, keywords);
+}
+
+// ===== Parse Historical Metrics Results =====
+function parseHistoricalResults(data, originalKeywords) {
     const results = {};
 
-    // Parse results
+    if (data.results) {
+        for (const result of data.results) {
+            const keyword = result.text || '';
+            const metrics = result.keywordMetrics || {};
+
+            results[keyword.toLowerCase()] = {
+                keyword: keyword,
+                avgMonthlySearches: metrics.avgMonthlySearches || 0,
+                competition: metrics.competition || 'UNSPECIFIED',
+                competitionIndex: metrics.competitionIndex || 0,
+                lowTopOfPageBidMicros: metrics.lowTopOfPageBidMicros
+                    ? parseInt(metrics.lowTopOfPageBidMicros) / 1000000
+                    : 0,
+                highTopOfPageBidMicros: metrics.highTopOfPageBidMicros
+                    ? parseInt(metrics.highTopOfPageBidMicros) / 1000000
+                    : 0,
+                monthlySearchVolumes: (metrics.monthlySearchVolumes || []).map(m => ({
+                    month: m.month,
+                    year: m.year,
+                    searches: m.monthlySearches || 0
+                }))
+            };
+        }
+    }
+
+    // Fill missing keywords with zeros
+    for (const kw of originalKeywords) {
+        if (!results[kw.toLowerCase()]) {
+            results[kw.toLowerCase()] = emptyResult(kw);
+        }
+    }
+
+    return results;
+}
+
+// ===== Parse Keyword Ideas Results =====
+function parseIdeaResults(data, originalKeywords) {
+    const results = {};
+
     if (data.results) {
         for (const result of data.results) {
             const keyword = result.text;
@@ -147,7 +242,6 @@ async function getKeywordVolumes(keywords, accessToken, env) {
                 highTopOfPageBidMicros: metrics.highTopOfPageBidMicros
                     ? parseInt(metrics.highTopOfPageBidMicros) / 1000000
                     : 0,
-                // Monthly breakdown (last 12 months)
                 monthlySearchVolumes: (metrics.monthlySearchVolumes || []).map(m => ({
                     month: m.month,
                     year: m.year,
@@ -157,22 +251,25 @@ async function getKeywordVolumes(keywords, accessToken, env) {
         }
     }
 
-    // For keywords not found in results, mark as 0
-    for (const kw of keywords) {
+    for (const kw of originalKeywords) {
         if (!results[kw.toLowerCase()]) {
-            results[kw.toLowerCase()] = {
-                keyword: kw,
-                avgMonthlySearches: 0,
-                competition: 'UNSPECIFIED',
-                competitionIndex: 0,
-                lowTopOfPageBidMicros: 0,
-                highTopOfPageBidMicros: 0,
-                monthlySearchVolumes: []
-            };
+            results[kw.toLowerCase()] = emptyResult(kw);
         }
     }
 
     return results;
+}
+
+function emptyResult(kw) {
+    return {
+        keyword: kw,
+        avgMonthlySearches: 0,
+        competition: 'UNSPECIFIED',
+        competitionIndex: 0,
+        lowTopOfPageBidMicros: 0,
+        highTopOfPageBidMicros: 0,
+        monthlySearchVolumes: []
+    };
 }
 
 function jsonResponse(data, status, corsHeaders) {

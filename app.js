@@ -669,9 +669,13 @@ function showProductModal(r) {
 
     let longTailHtml = '';
     if (r.longTailKeywords && r.longTailKeywords.length > 0) {
-        const allSuggestions = r.longTailKeywords.flatMap(lt =>
-            lt.suggestions.map(s => ({ text: s, query: lt.query }))
-        );
+        // Track position within each query group for popularity estimation
+        const allSuggestions = [];
+        r.longTailKeywords.forEach(lt => {
+            lt.suggestions.forEach((s, idx) => {
+                allSuggestions.push({ text: s, query: lt.query, rank: idx + 1 });
+            });
+        });
         const seen = new Set();
         const uniqueSuggestions = allSuggestions.filter(s => {
             if (seen.has(s.text.toLowerCase())) return false;
@@ -689,13 +693,24 @@ function showProductModal(r) {
 
         const hasVolumeData = Object.values(ltVolumes).some(v => v.monthlyVolume > 0);
 
+        function popularityLabel(s) {
+            const vol = ltVolumes[s.text.toLowerCase()];
+            if (vol && vol.monthlyVolume > 0) {
+                return `<span class="vol-badge">${formatVolume(vol.monthlyVolume)}/ay</span>`;
+            }
+            // Use autocomplete position as popularity proxy
+            if (s.rank <= 3) return '<span class="vol-badge vol-hot">🔥 Çok Popüler</span>';
+            if (s.rank <= 6) return '<span class="vol-badge vol-suggest">⚡ Popüler</span>';
+            return '<span class="vol-badge vol-none">📊 Aranan</span>';
+        }
+
         longTailHtml = `<div class="modal-section">
             <div class="modal-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 🔍 Google'da Aranan İlgili Kelimeler
                 <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400"> (${uniqueSuggestions.length} sonuç)</span>
             </div>
-            ${hasVolumeData ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;padding:6px 10px;background:var(--bg-elevated);border-radius:6px">📊 Arama hacmi, rekabet ve CPC verileri Google Keyword Planner'dan alınmıştır.</div>` : ''}
+            ${hasVolumeData ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;padding:6px 10px;background:var(--bg-elevated);border-radius:6px">📊 Arama hacmi, rekabet ve CPC verileri Google Keyword Planner'dan alınmıştır.</div>` : `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;padding:6px 10px;background:var(--bg-elevated);border-radius:6px">📊 Popülerlik Google Autocomplete sıralamasına göre tahmin edilmiştir. Gerçek arama hacimleri için Basic Access gereklidir.</div>`}
             ${notCovered.length > 0 ? `
             <div class="kw-group kw-group-missing" style="margin-bottom:1rem">
                 <div class="kw-group-title">💡 Başlığınızda Olmayan Popüler Aramalar <span class="kw-group-count">${notCovered.length}</span></div>
@@ -703,7 +718,7 @@ function showProductModal(r) {
                     ${notCovered.slice(0, 15).map(s => `<div class="kw-row kw-missing">
                         <div class="kw-name"><strong>${s.text}</strong></div>
                         <div class="kw-meta">
-                            ${ltVolumeBadge(s.text) || '<span class="vol-badge vol-suggest">Google Suggest</span>'}
+                            ${popularityLabel(s)}
                             ${ltCompBadge(s.text)}
                             ${ltCpcBadge(s.text)}
                         </div>
@@ -717,7 +732,7 @@ function showProductModal(r) {
                     ${covered.slice(0, 8).map(s => `<div class="kw-row kw-present">
                         <div class="kw-name"><strong>${s.text}</strong></div>
                         <div class="kw-meta">
-                            ${ltVolumeBadge(s.text) || '<span class="vol-badge vol-suggest">✓ Eşleşiyor</span>'}
+                            ${popularityLabel(s)}
                             ${ltCompBadge(s.text)}
                         </div>
                     </div>`).join('')}

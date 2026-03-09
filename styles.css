@@ -1974,6 +1974,12 @@ body {
     color: var(--accent-purple);
 }
 
+.vol-badge.vol-hot {
+    background: rgba(201, 53, 53, 0.12);
+    color: var(--accent-red);
+    font-weight: 800;
+}
+
 .vol-badge.vol-none {
     background: var(--bg-elevated);
     color: var(--text-muted);
