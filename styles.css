@@ -565,6 +565,20 @@ body {
     border-color: var(--border-hover);
 }
 
+.btn-cancel {
+    background: rgba(201, 53, 53, 0.12);
+    color: var(--accent-red);
+    border: 1px solid rgba(201, 53, 53, 0.25);
+    margin-top: 1rem;
+    transition: var(--transition);
+}
+
+.btn-cancel:hover {
+    background: rgba(201, 53, 53, 0.22);
+    border-color: var(--accent-red);
+    transform: translateY(-1px);
+}
+
 /* ===== Results Section ===== */
 .results-section {
     padding: 3rem 2rem;

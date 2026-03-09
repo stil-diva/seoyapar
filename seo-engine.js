@@ -983,6 +983,7 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
     // Step 2b: Fallback to Google Autocomplete
     if (dataSource === 'google_autocomplete') {
         for (let i = 0; i < keywordsArray.length; i++) {
+            if (progressCallback && progressCallback(0, 0)) break; // check cancel
             const kw = keywordsArray[i];
             try {
                 const suggestions = await googleAutocomplete(kw);
@@ -1014,7 +1015,8 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
 
     // Step 4: Long-tail research per product
     for (let i = 0; i < total; i++) {
-        if (progressCallback) progressCallback(i + 1, total);
+        const cancelled = progressCallback ? progressCallback(i + 1, total) : false;
+        if (cancelled) break;
         const longTail = await researchLongTailKeywords(products[i], analysisResults[i]);
         analysisResults[i].longTailKeywords = longTail;
 

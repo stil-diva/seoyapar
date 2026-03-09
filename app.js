@@ -12,6 +12,7 @@ const modalOverlay = $('modalOverlay');
 let rawData = [];
 let headers = [];
 let analysisResults = [];
+let _cancelAnalysis = false;
 
 // ===== API Settings Modal =====
 const apiModal = $('apiSettingsModal');
@@ -241,6 +242,11 @@ function runAnalysis() {
     const stockCol = parseInt($('colStock').value);
     const brandCol = parseInt($('colBrand').value);
 
+    // Cancel button handler
+    _cancelAnalysis = false;
+    const cancelBtn = $('cancelAnalysisBtn');
+    cancelBtn.onclick = () => { _cancelAnalysis = true; };
+
     setTimeout(async () => {
         const products = rawData.map(row => ({
             name: String(row[nameCol] || '').trim(),
@@ -268,35 +274,45 @@ function runAnalysis() {
         step1.classList.remove('active');
         step1.classList.add('done');
 
+        let wasCancelled = false;
+
         // Step 2: Google Autocomplete long-tail keyword research (15% → 85%)
-        step2.classList.add('active');
-        elTitle.textContent = 'Google Araştırması';
-        elStatus.textContent = 'Uzun kuyruklu anahtar kelimeler araştırılıyor...';
-        try {
-            await researchAllProducts(products, analysisResults, (current, total) => {
-                const pct = 15 + (current / total) * 70;
-                setProgress(pct);
-                elStatus.textContent = `Google arama verileri: ${current}/${total} ürün`;
-            });
-        } catch (e) {
-            console.warn('Google Autocomplete araması başarısız:', e);
+        if (!_cancelAnalysis) {
+            step2.classList.add('active');
+            elTitle.textContent = 'Google Araştırması';
+            elStatus.textContent = 'Uzun kuyruklu anahtar kelimeler araştırılıyor...';
+            try {
+                await researchAllProducts(products, analysisResults, (current, total) => {
+                    const pct = 15 + (current / total) * 70;
+                    setProgress(pct);
+                    elStatus.textContent = `Google arama verileri: ${current}/${total} ürün`;
+                    return _cancelAnalysis; // return true to signal cancellation
+                });
+            } catch (e) {
+                console.warn('Google Autocomplete araması başarısız:', e);
+            }
+            step2.classList.remove('active');
+            step2.classList.add('done');
         }
-        step2.classList.remove('active');
-        step2.classList.add('done');
+
+        if (_cancelAnalysis) {
+            wasCancelled = true;
+            _cancelAnalysis = false;
+        }
 
         // Step 3: Report generation
         step3.classList.add('active');
-        elTitle.textContent = 'Rapor Hazırlanıyor';
-        elStatus.textContent = 'Sonuçlar derleniyor...';
+        elTitle.textContent = wasCancelled ? 'Durduruldu — Kısmi Rapor' : 'Rapor Hazırlanıyor';
+        elStatus.textContent = wasCancelled ? 'Mevcut sonuçlar derleniyor...' : 'Sonuçlar derleniyor...';
         setProgress(90);
         const stats = generateOverallStats(analysisResults);
         setProgress(100);
-        elStatus.textContent = 'Tamamlandı!';
+        elStatus.textContent = wasCancelled ? 'Kısmi rapor hazır!' : 'Tamamlandı!';
 
         clearInterval(timerInterval);
         clearInterval(tipInterval);
 
-        await new Promise(r => setTimeout(r, 600)); // Brief pause at 100%
+        await new Promise(r => setTimeout(r, 400));
 
         loadingOverlay.style.display = 'none';
         // Reset loading UI
