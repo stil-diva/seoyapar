@@ -640,13 +640,38 @@ function showProductModal(r) {
         </div>`;
     }
 
-    // ===== LONG TAIL KEYWORDS (better display) =====
+    // ===== LONG TAIL KEYWORDS (with volume data) =====
+    const ltVolumes = r.longTailVolumes || {};
+
+    function ltVolumeBadge(text) {
+        const vol = ltVolumes[text.toLowerCase()];
+        if (vol && vol.monthlyVolume > 0) {
+            return `<span class="vol-badge">${formatVolume(vol.monthlyVolume)}/ay</span>`;
+        }
+        return '';
+    }
+
+    function ltCompBadge(text) {
+        const vol = ltVolumes[text.toLowerCase()];
+        if (vol && vol.competition && vol.competition !== 'UNSPECIFIED') {
+            return competitionBadge(vol.competition, vol.competitionIndex);
+        }
+        return '';
+    }
+
+    function ltCpcBadge(text) {
+        const vol = ltVolumes[text.toLowerCase()];
+        if (vol && vol.cpcHigh > 0) {
+            return `<span class="cpc-badge">₺${vol.cpcHigh.toFixed(2)}</span>`;
+        }
+        return '';
+    }
+
     let longTailHtml = '';
     if (r.longTailKeywords && r.longTailKeywords.length > 0) {
         const allSuggestions = r.longTailKeywords.flatMap(lt =>
             lt.suggestions.map(s => ({ text: s, query: lt.query }))
         );
-        // Deduplicate
         const seen = new Set();
         const uniqueSuggestions = allSuggestions.filter(s => {
             if (seen.has(s.text.toLowerCase())) return false;
@@ -662,19 +687,26 @@ function showProductModal(r) {
             !s.text.toLowerCase().split(' ').filter(w => w.length >= 3).every(w => nameLow.includes(w))
         );
 
+        const hasVolumeData = Object.values(ltVolumes).some(v => v.monthlyVolume > 0);
+
         longTailHtml = `<div class="modal-section">
             <div class="modal-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 🔍 Google'da Aranan İlgili Kelimeler
                 <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400"> (${uniqueSuggestions.length} sonuç)</span>
             </div>
+            ${hasVolumeData ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;padding:6px 10px;background:var(--bg-elevated);border-radius:6px">📊 Arama hacmi, rekabet ve CPC verileri Google Keyword Planner'dan alınmıştır.</div>` : ''}
             ${notCovered.length > 0 ? `
             <div class="kw-group kw-group-missing" style="margin-bottom:1rem">
                 <div class="kw-group-title">💡 Başlığınızda Olmayan Popüler Aramalar <span class="kw-group-count">${notCovered.length}</span></div>
                 <div class="kw-table">
-                    ${notCovered.slice(0, 12).map(s => `<div class="kw-row kw-missing">
+                    ${notCovered.slice(0, 15).map(s => `<div class="kw-row kw-missing">
                         <div class="kw-name"><strong>${s.text}</strong></div>
-                        <div class="kw-meta"><span class="vol-badge vol-suggest">Google Suggest</span></div>
+                        <div class="kw-meta">
+                            ${ltVolumeBadge(s.text) || '<span class="vol-badge vol-suggest">Google Suggest</span>'}
+                            ${ltCompBadge(s.text)}
+                            ${ltCpcBadge(s.text)}
+                        </div>
                     </div>`).join('')}
                 </div>
             </div>` : ''}
@@ -682,12 +714,62 @@ function showProductModal(r) {
             <div class="kw-group kw-group-present">
                 <div class="kw-group-title">✅ Başlığınızla Eşleşen Aramalar <span class="kw-group-count">${covered.length}</span></div>
                 <div class="kw-table">
-                    ${covered.slice(0, 6).map(s => `<div class="kw-row kw-present">
+                    ${covered.slice(0, 8).map(s => `<div class="kw-row kw-present">
                         <div class="kw-name"><strong>${s.text}</strong></div>
-                        <div class="kw-meta"><span class="vol-badge vol-suggest">✓ Eşleşiyor</span></div>
+                        <div class="kw-meta">
+                            ${ltVolumeBadge(s.text) || '<span class="vol-badge vol-suggest">✓ Eşleşiyor</span>'}
+                            ${ltCompBadge(s.text)}
+                        </div>
                     </div>`).join('')}
                 </div>
             </div>` : ''}
+        </div>`;
+    }
+
+    // ===== VISIBILITY IMPACT SECTION =====
+    let impactHtml = '';
+    if (r.suggestedName !== r.name || (r.missingKeywords && r.missingKeywords.length > 0)) {
+        const missingCount = r.missingKeywords ? r.missingKeywords.length : 0;
+        const totalVolume = (r.keywordDetails || [])
+            .filter(k => k.status === 'missing' && k.monthlyVolume > 0)
+            .reduce((sum, k) => sum + k.monthlyVolume, 0);
+
+        const ltMissedVolume = Object.values(ltVolumes)
+            .filter(v => v.monthlyVolume > 0)
+            .reduce((sum, v) => sum + v.monthlyVolume, 0);
+
+        const currentScore = r.score;
+        const estimatedNewScore = Math.min(100, currentScore + (missingCount * 5));
+
+        impactHtml = `<div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                📈 Önerilen Değişikliklerin Tahmini Etkisi
+            </div>
+            <div class="impact-grid">
+                <div class="impact-card">
+                    <div class="impact-label">Mevcut SEO Skoru</div>
+                    <div class="impact-value" style="color:${currentScore >= 80 ? 'var(--accent-green)' : currentScore >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)'}">${currentScore}</div>
+                </div>
+                <div class="impact-arrow">→</div>
+                <div class="impact-card impact-card-new">
+                    <div class="impact-label">Tahmini Yeni Skor</div>
+                    <div class="impact-value" style="color:var(--accent-green)">${estimatedNewScore}</div>
+                </div>
+                <div class="impact-card">
+                    <div class="impact-label">Eksik Anahtar Kelime</div>
+                    <div class="impact-value" style="color:var(--accent-red)">${missingCount}</div>
+                </div>
+                ${totalVolume > 0 ? `<div class="impact-card">
+                    <div class="impact-label">Kaçırılan Aylık Arama</div>
+                    <div class="impact-value" style="color:var(--accent-yellow)">${formatVolume(totalVolume)}</div>
+                </div>` : ''}
+            </div>
+            <div class="impact-tips">
+                ${r.suggestedName !== r.name ? `<div class="impact-tip">✅ <strong>Önerilen başlığı kullanın</strong> — Eksik anahtar kelimeler eklenmiş, ${missingCount} yeni arama terimi yakalanacak</div>` : ''}
+                ${missingCount > 0 ? `<div class="impact-tip">📌 <strong>Eksik kelimeleri ekleyin</strong> — Bu kelimeler açıklamanızda var ama başlıkta yok. Başlığa eklemek arama sonuçlarında görünürlüğü artırır.</div>` : ''}
+                ${totalVolume > 0 ? `<div class="impact-tip">🔍 <strong>Aylık ${formatVolume(totalVolume)} arama</strong> — Eksik anahtar kelimeler için toplam aylık arama hacmi. Bu aramalarda şu an görünmüyorsunuz.</div>` : ''}
+            </div>
         </div>`;
     }
 
@@ -764,6 +846,7 @@ function showProductModal(r) {
             ${kwDetailsHtml}
         </div>` : ''}
         ${longTailHtml}
+        ${impactHtml}
         <div class="modal-section">
             <div class="modal-section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>

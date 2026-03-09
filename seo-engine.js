@@ -928,10 +928,23 @@ const IRRELEVANT_WORDS = [
     'futbol', 'maç', 'film', 'dizi', 'şarkı', 'oyun'
 ];
 
-function isRelevantSuggestion(suggestion, category) {
+function isRelevantSuggestion(suggestion, category, productGender) {
     const lower = suggestion.toLowerCase();
     // Filter out suggestions with clearly irrelevant words
     if (IRRELEVANT_WORDS.some(w => lower.includes(w))) return false;
+
+    // Gender filter — don't show "erkek kazak" for a kadın product and vice versa
+    if (productGender === 'kadın' && lower.includes('erkek')) return false;
+    if (productGender === 'erkek' && (lower.includes('kadın') || lower.includes('bayan'))) return false;
+
+    // Filter out non-product suggestions (DIY, recipes, etc.)
+    const NON_PRODUCT_WORDS = ['yapımı', 'yapılışı', 'tarifi', 'nasıl yapılır', 'dikimi', 'dikimine', 'örgü deseni', 'örme'];
+    if (NON_PRODUCT_WORDS.some(w => lower.includes(w))) return false;
+
+    // Filter out brand-specific suggestions (zara, lcw etc are not useful for SEO)
+    const BRAND_WORDS = ['zara', 'h&m', 'lcw', 'lc waikiki', 'koton', 'mango', 'defacto', 'boyner'];
+    if (BRAND_WORDS.some(w => lower.includes(w))) return false;
+
     // Filter out suggestions that are just the category with a country/geography suffix
     if (category && lower.startsWith(category) && !lower.includes('model') && !lower.includes('kadın') &&
         !lower.includes('erkek') && !lower.includes('beden') && !lower.includes('giy') &&
@@ -941,10 +954,8 @@ function isRelevantSuggestion(suggestion, category) {
         !lower.includes('renk') && !lower.includes('triko') && !lower.includes('viskon') &&
         !lower.includes('pamuk') && !lower.includes('kapüşon') && !lower.includes('fermu') &&
         !lower.includes('düğme') && !lower.includes('uzun') && !lower.includes('kısa')) {
-        // If the suggestion doesn't contain any fashion-related word after the category, check length
         const afterCategory = lower.replace(category, '').trim();
         if (afterCategory.length > 0 && afterCategory.split(' ').length <= 2) {
-            // Short suffix that's not fashion-related — likely irrelevant
             return false;
         }
     }
@@ -956,19 +967,28 @@ async function researchLongTailKeywords(product, analysisResult, progressCallbac
     const queries = generateLongTailQueries(product, analysisResult);
     const longTailResults = [];
 
-    // Detect category for filtering
+    // Detect category and gender for filtering
     const nameLower = (product.name || '').toLowerCase();
+    const descLower = (product.description || '').toLowerCase();
     let category = '';
     for (const [cat, data] of Object.entries(CATEGORY_MAPPINGS)) {
         if (data.aliases.some(a => nameLower.includes(a))) { category = cat; break; }
+    }
+
+    // Detect gender
+    let productGender = '';
+    if (nameLower.includes('kadın') || descLower.includes('kadın') || nameLower.includes('bayan') || descLower.includes('bayan')) {
+        productGender = 'kadın';
+    } else if (nameLower.includes('erkek') || descLower.includes('erkek')) {
+        productGender = 'erkek';
     }
 
     for (let i = 0; i < queries.length; i++) {
         const query = queries[i];
         try {
             const suggestions = await googleAutocomplete(query);
-            // Filter out irrelevant suggestions
-            const filtered = suggestions.filter(s => isRelevantSuggestion(s, category));
+            // Filter with gender awareness
+            const filtered = suggestions.filter(s => isRelevantSuggestion(s, category, productGender));
             if (filtered.length > 0) {
                 longTailResults.push({
                     query,
@@ -1081,5 +1101,52 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
             analysisResults[i].googleSuggestions = uniqueSuggestions;
         }
     }
+
+    // Step 5: Fetch volumes for long-tail suggestions via Keyword Planner API
+    if (apiAvailable) {
+        const allLongTailKws = new Set();
+        analysisResults.forEach(r => {
+            if (r.longTailKeywords) {
+                r.longTailKeywords.forEach(lt => {
+                    lt.suggestions.forEach(s => allLongTailKws.add(s.toLowerCase()));
+                });
+            }
+        });
+
+        const ltKwArray = [...allLongTailKws];
+        if (ltKwArray.length > 0) {
+            try {
+                // Batch in groups of 50
+                const ltVolumes = {};
+                for (let b = 0; b < ltKwArray.length; b += 50) {
+                    const batch = ltKwArray.slice(b, b + 50);
+                    const volData = await fetchKeywordVolumes(batch);
+                    if (volData) Object.assign(ltVolumes, volData);
+                }
+
+                // Inject into long-tail results
+                analysisResults.forEach(r => {
+                    r.longTailVolumes = {}; // Store for UI access
+                    if (r.longTailKeywords) {
+                        r.longTailKeywords.forEach(lt => {
+                            lt.suggestions.forEach(s => {
+                                const vol = ltVolumes[s.toLowerCase()] || {};
+                                r.longTailVolumes[s.toLowerCase()] = {
+                                    monthlyVolume: vol.avgMonthlySearches || 0,
+                                    competition: vol.competition || 'UNSPECIFIED',
+                                    competitionIndex: vol.competitionIndex || 0,
+                                    cpcLow: (vol.lowTopOfPageBidMicros || 0) / 1000000,
+                                    cpcHigh: (vol.highTopOfPageBidMicros || 0) / 1000000
+                                };
+                            });
+                        });
+                    }
+                });
+            } catch (e) {
+                console.warn('Long-tail volume fetch failed:', e);
+            }
+        }
+    }
+
     return analysisResults;
 }

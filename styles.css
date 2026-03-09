@@ -2040,3 +2040,64 @@ body {
     background: rgba(139, 26, 58, 0.1);
     color: var(--accent-yellow);
 }
+
+/* ===== Visibility Impact Section ===== */
+.impact-grid {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.impact-card {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.impact-card-new {
+    border-color: var(--accent-green);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.impact-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.impact-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.impact-arrow {
+    font-size: 1.5rem;
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.impact-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.impact-tip {
+    padding: 10px 14px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
