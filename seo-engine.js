@@ -1327,7 +1327,7 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
                     const resp = await fetch(KEYWORD_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'serp', query: q })
+                        body: JSON.stringify({ action: 'competitors', query: q })
                     });
                     const data = await resp.json();
                     if (data.success && data.data) {

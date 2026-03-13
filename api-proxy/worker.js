@@ -68,10 +68,30 @@ export default {
                 return jsonResponse({ error: 'API credentials not configured' }, 401, corsHeaders);
             }
 
-            // ===== SERP ANALYSIS (Competitor Research) =====
+            // ===== COMPETITOR ANALYSIS (Trendyol — FREE) =====
+            if (action === 'competitors' && query) {
+                const competitorData = await getTrendyolCompetitors(query);
+                return jsonResponse({ success: true, data: competitorData, source: 'trendyol' }, 200, corsHeaders);
+            }
+
+            // ===== SERP ANALYSIS (DataForSEO — paid, try Trendyol fallback) =====
             if (action === 'serp' && query) {
-                const serpData = await getSerpResults(query, authHeader);
-                return jsonResponse({ success: true, data: serpData, source: 'dataforseo' }, 200, corsHeaders);
+                // Try Trendyol first (free)
+                try {
+                    const trendyolData = await getTrendyolCompetitors(query);
+                    if (trendyolData.products && trendyolData.products.length > 0) {
+                        return jsonResponse({ success: true, data: trendyolData, source: 'trendyol' }, 200, corsHeaders);
+                    }
+                } catch (e) {
+                    console.warn('Trendyol fallback failed:', e);
+                }
+                // Fall back to DataForSEO SERP if available
+                try {
+                    const serpData = await getSerpResults(query, authHeader);
+                    return jsonResponse({ success: true, data: serpData, source: 'dataforseo' }, 200, corsHeaders);
+                } catch (e) {
+                    return jsonResponse({ error: 'SERP analysis unavailable: ' + e.message }, 200, corsHeaders);
+                }
             }
 
             // ===== KEYWORD SEARCH VOLUME =====
@@ -194,6 +214,87 @@ async function getSerpResults(query, authHeader) {
     }
 
     return results;
+}
+
+// ===== Trendyol Competitor Search (FREE — no API key needed) =====
+async function getTrendyolCompetitors(query) {
+    // Try both API patterns
+    const urls = [
+        `https://public.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/sr?q=${encodeURIComponent(query)}&pi=1&culture=tr-TR&storefrontId=1&language=tr&pageSize=20`,
+        `https://apigw.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/sr?q=${encodeURIComponent(query)}&pi=1&culture=tr-TR&storefrontId=1&language=tr&pageSize=20`
+    ];
+
+    let data = null;
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+                }
+            });
+            if (response.ok) {
+                data = await response.json();
+                break;
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+
+    if (!data) {
+        return { query, products: [], competitors: [], marketplaceResults: [], totalResults: 0, source: 'trendyol' };
+    }
+
+    const rawProducts = data?.result?.products || [];
+
+    const products = rawProducts.map((p, i) => ({
+        position: i + 1,
+        title: p.name || '',
+        brand: p.brand?.name || '',
+        merchant: p.merchantName || '',
+        price: p.price?.sellingPrice || p.price?.originalPrice || 0,
+        rating: p.ratingScore?.averageRating || 0,
+        reviewCount: p.ratingScore?.totalCount || 0,
+        url: `https://www.trendyol.com${p.url || ''}`,
+        imageUrl: p.images?.[0] ? `https://cdn.dsmcdn.com/${p.images[0]}` : ''
+    }));
+
+    // Extract unique stores/brands
+    const stores = {};
+    for (const p of products) {
+        const key = p.merchant || p.brand;
+        if (!key) continue;
+        if (!stores[key]) {
+            stores[key] = { name: key, domain: 'trendyol.com', count: 0, positions: [], titles: [] };
+        }
+        stores[key].count++;
+        stores[key].positions.push(p.position);
+        stores[key].titles.push(p.title);
+    }
+
+    const competitors = Object.values(stores)
+        .sort((a, b) => a.positions[0] - b.positions[0])
+        .slice(0, 10);
+
+    // Also format as marketplace results for compatibility with existing frontend
+    const marketplaceResults = products.map(p => ({
+        title: `${p.brand} ${p.title}`,
+        domain: 'trendyol.com',
+        url: p.url,
+        position: p.position,
+        description: `${p.merchant} — ₺${p.price}`
+    }));
+
+    return {
+        query,
+        products,
+        competitors,
+        marketplaceResults,
+        totalResults: data?.result?.totalCount || products.length,
+        source: 'trendyol'
+    };
 }
 
 function jsonResponse(data, status, corsHeaders) {
