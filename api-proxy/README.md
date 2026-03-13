@@ -1,58 +1,35 @@
-# SEOYapar - Google Keyword Planner API Proxy
+# SEOYapar - DataForSEO API Proxy
 
-Bu Cloudflare Worker, Google Ads Keyword Planner API'ye güvenli proxy görevi görür.
-API anahtarlarınız sunucuda kalır, frontend'e hiçbir zaman açılmaz.
+Bu Cloudflare Worker, DataForSEO API'ye güvenli proxy görevi görür.
+API credentials'larınız sunucuda kalır, frontend'e hiçbir zaman açılmaz.
 
 ## 🚀 Kurulum
 
-### 1. Google Ads API Erişimi Alın
+### 1. DataForSEO Hesap Açın
 
-1. [Google Ads Developer Token](https://developers.google.com/google-ads/api/docs/get-started/dev-token) başvurusu yapın
-2. [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
-   - OAuth 2.0 Client ID oluşturun (Web Application)
-   - Client ID ve Client Secret'ı not edin
-3. Google Ads hesabınızdan Customer ID'yi alın (10 haneli numara)
+1. [app.dataforseo.com/register](https://app.dataforseo.com/register) adresine gidin
+2. E-posta ve şifre ile ücretsiz hesap oluşturun (kredi kartı gerekmez!)
+3. **$1 ücretsiz kredi** otomatik yüklenir
+4. **Dashboard → API Access** bölümünden login ve password'ünüzü kopyalayın
 
-### 2. OAuth2 Refresh Token Alın
-
-```bash
-# 1. Authorization URL'ye gidin (tarayıcıda açın):
-https://accounts.google.com/o/oauth2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=https://www.googleapis.com/auth/adwords&response_type=code&access_type=offline
-
-# 2. Sayfada verilen "code" değerini alın
-
-# 3. Refresh token alın:
-curl -X POST https://oauth2.googleapis.com/token \
-  -d "code=AUTHORIZATION_CODE" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET" \
-  -d "redirect_uri=urn:ietf:wg:oauth:2.0:oob" \
-  -d "grant_type=authorization_code"
-
-# Yanıttaki refresh_token'ı saklayın
-```
-
-### 3. Cloudflare Worker Deploy
+### 2. Cloudflare Worker Deploy
 
 ```bash
-# Wrangler CLI yükle
+# Wrangler CLI yükle (zaten yoksa)
 npm install -g wrangler
 
 # Cloudflare'a giriş yap
 wrangler login
 
-# Secrets ekle (her biri için ayrı komut çalıştırın)
-wrangler secret put GOOGLE_CLIENT_ID
-wrangler secret put GOOGLE_CLIENT_SECRET
-wrangler secret put GOOGLE_REFRESH_TOKEN
-wrangler secret put GOOGLE_DEVELOPER_TOKEN
-wrangler secret put GOOGLE_CUSTOMER_ID
+# API credentials'ları ekle
+wrangler secret put DATAFORSEO_LOGIN
+wrangler secret put DATAFORSEO_PASSWORD
 
 # Deploy et
 wrangler deploy
 ```
 
-### 4. SEOYapar'da Bağlan
+### 3. SEOYapar'da Bağlan
 
 1. seoyapar.com → Sağ üstteki ⚙️ (dişli) ikonuna tıklayın
 2. Worker URL'nizi girin: `https://seoyapar-keyword-proxy.YOUR_ACCOUNT.workers.dev`
@@ -63,15 +40,33 @@ wrangler deploy
 
 | Bileşen | Maliyet |
 |---------|---------|
-| Google Ads API | Ücretsiz (hesap gerekli) |
+| DataForSEO Kayıt | **Ücretsiz** ($1 başlangıç kredisi) |
+| Keyword Hacim Sorgusu | $0.01 / istek (1000 keyword'e kadar) |
+| SERP Analizi | $0.002 / istek ($50 bakiye gerektirir) |
 | Cloudflare Worker | Ücretsiz (100K istek/gün) |
-| **Toplam** | **$0/ay** |
+| **Sonraki yükleme** | **Min. $50** (kullandıkça öde) |
+
+> 💡 $1 başlangıç kredisi ile: ~100 keyword hacim isteği = ~100.000 keyword analizi yapılabilir.
+> $50 yükleme ile: keyword hacim + SERP rakip analizi + keyword fikirleri — tamamı aktif olur.
 
 ## 📊 Ne Sağlar?
 
-Google Keyword Planner verileri:
-- ✅ Gerçek aylık arama hacmi (örn: "viskon elbise" → 8,100/ay)
+### Keyword Hacim Verisi ($0.01/istek — $1 kredi ile çalışır)
+- ✅ Gerçek aylık arama hacmi (Google Keyword Planner verisi)
 - ✅ Rekabet düzeyi (LOW/MEDIUM/HIGH)
-- ✅ CPC (tıklama başına maliyet)
-- ✅ Son 12 ay trend verisi
-- ✅ Türkiye'ye özel veriler (geo: TR, dil: TR)
+- ✅ CPC (tıklama başına maliyet) — TL cinsinden
+- ✅ Son 24 ay trend verisi
+- ✅ Türkiye'ye özel veriler
+
+### Google SERP Rakip Analizi ($0.002/istek — $50+ bakiye gerektirir)
+- 🔍 Kategorideki Google sıralaması
+- 🏢 Trendyol/Hepsiburada'daki rakip mağazalar
+- ⚡ Rakiplerin kullandığı eksik kelimeler
+
+## ⚙️ Teknik Detaylar
+
+- **Keyword Volume**: `POST /v3/keywords_data/google_ads/search_volume/live`
+- **SERP Results**: `POST /v3/serp/google/organic/live/regular`
+- **Max batch**: 1000 keyword/istek (volume), 1 query/istek (SERP)
+- **Ülke**: 2792 (Türkiye) — Dil: `tr`
+- **Auth**: Basic Auth (login:password)

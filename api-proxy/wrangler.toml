@@ -7,8 +7,5 @@ ALLOWED_ORIGIN = "https://seoyapar.com"
 
 # Sensitive variables — set via Cloudflare Dashboard or wrangler secret
 # DO NOT put real values here!
-# wrangler secret put GOOGLE_CLIENT_ID
-# wrangler secret put GOOGLE_CLIENT_SECRET
-# wrangler secret put GOOGLE_REFRESH_TOKEN
-# wrangler secret put GOOGLE_DEVELOPER_TOKEN
-# wrangler secret put GOOGLE_CUSTOMER_ID
+# wrangler secret put DATAFORSEO_LOGIN
+# wrangler secret put DATAFORSEO_PASSWORD
