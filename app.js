@@ -47,13 +47,14 @@ $('testApiBtn').addEventListener('click', async () => {
         });
         const data = await resp.json();
         if (data.status === 'ok' && data.hasCredentials) {
+            const creditInfo = data.credits !== undefined && data.credits >= 0 ? ` (Bakiye: $${Number(data.credits).toFixed(2)})` : '';
             statusEl.style.background = 'rgba(16,185,129,0.15)';
             statusEl.style.color = '#10b981';
-            statusEl.textContent = '✅ Bağlantı başarılı! Google Keyword Planner hazır.';
+            statusEl.textContent = `✅ Bağlantı başarılı! DataForSEO hazır.${creditInfo}`;
         } else if (data.status === 'ok') {
             statusEl.style.background = 'rgba(232,116,12,0.15)';
             statusEl.style.color = 'var(--accent-yellow)';
-            statusEl.textContent = '⚠️ Worker çalışıyor ama Google API credentials eksik.';
+            statusEl.textContent = '⚠️ Worker çalışıyor ama API credentials eksik.';
         } else {
             throw new Error('Bad response');
         }
@@ -815,7 +816,7 @@ function showProductModal(r) {
 
     // Data source badge
     const dataSourceBadge = hasApiData
-        ? '<span class="data-source-badge api">📊 Google Keyword Planner</span>'
+        ? '<span class="data-source-badge api">📊 DataForSEO (Google Keyword Planner)</span>'
         : '<span class="data-source-badge suggest">🔍 Google Autocomplete</span>';
 
     mc.innerHTML = `
@@ -861,6 +862,74 @@ function showProductModal(r) {
             ${kwDetailsHtml}
         </div>` : ''}
         ${longTailHtml}
+        ${r.competitors && r.competitors.length > 0 ? `
+        <div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2m22-4l-5 5 5 5M9 7a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                🏢 Rakip Analizi — "${r.serpResults?.query || ''}" aramasında üst sıradakiler
+            </div>
+            <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+                <div style="display:grid;grid-template-columns:auto 1fr auto;gap:0;background:var(--bg-primary);font-size:0.7rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:8px 12px;border-bottom:1px solid var(--border)">
+                    <span style="min-width:30px">Sıra</span>
+                    <span>Mağaza / Marka</span>
+                    <span style="text-align:right">Platform</span>
+                </div>
+                ${r.competitors.slice(0, 8).map(c => {
+                    const platformIcon = c.domain.includes('trendyol') ? '🟠' : c.domain.includes('hepsiburada') ? '🟣' : c.domain.includes('n11') ? '🔵' : '🌐';
+                    return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:0.8rem;align-items:center">
+                        <span style="min-width:30px;font-weight:700;color:var(--accent-yellow)">#${c.positions[0]}</span>
+                        <div style="min-width:0">
+                            <div style="font-weight:500;color:var(--text-primary)">${escapeHtml(c.name)}</div>
+                            <div style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.titles[0] || '')}</div>
+                        </div>
+                        <span style="font-size:0.75rem">${platformIcon} ${c.domain.split('.')[0]}</span>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>` : ''}
+        ${r.competitorKeywordGaps && r.competitorKeywordGaps.length > 0 ? `
+        <div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                ⚡ Rakiplerin Kullandığı Eksik Kelimeler
+            </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 8px 0">Rakiplerinizin başlıklarında sık geçen ama sizin başlığınızda olmayan kelimeler</p>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${r.competitorKeywordGaps.map(g =>
+                    `<span class="keyword-pill missing" style="font-size:0.78rem">✗ ${g.word} <span style="opacity:0.6;font-size:0.7rem">(${g.usedByCount}/${g.totalCompetitors} rakipte)</span></span>`
+                ).join('')}
+            </div>
+        </div>` : ''}
+        ${r.missingPopularKeywords && r.missingPopularKeywords.length > 0 ? `
+        <div class="modal-section">
+            <div class="modal-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                🔍 Pazar Araştırması — Kaçırılan Fırsatlar
+            </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:0 0 8px 0">Google'da aranan ama başlığınızda olmayan anahtar kelimeler (hacim verili)</p>
+            <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+                <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:0;background:var(--bg-primary);font-size:0.7rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:8px 12px;border-bottom:1px solid var(--border)">
+                    <span>Anahtar Kelime</span>
+                    <span style="text-align:right;min-width:70px">Arama Hacmi</span>
+                    <span style="text-align:center;min-width:65px">Rekabet</span>
+                    <span style="text-align:right;min-width:45px">CPC</span>
+                </div>
+                ${r.missingPopularKeywords.slice(0, 15).map(k => {
+                    const vol = k.searchVolume || 0;
+                    const volText = vol >= 1000 ? (vol / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : vol;
+                    const comp = k.competition || 'UNSPECIFIED';
+                    const compClass = comp === 'HIGH' ? 'critical' : comp === 'MEDIUM' ? 'warning' : comp === 'LOW' ? 'good' : '';
+                    const compText = comp === 'HIGH' ? 'YÜKSEK' : comp === 'MEDIUM' ? 'ORTA' : comp === 'LOW' ? 'DÜŞÜK' : '-';
+                    const cpcText = k.cpc ? '₺' + k.cpc.toFixed(2) : '-';
+                    return `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:0;padding:8px 12px;border-bottom:1px solid var(--border);font-size:0.82rem;align-items:center">
+                        <span style="color:var(--text-primary);font-weight:500">${k.keyword}</span>
+                        <span style="text-align:right;min-width:70px"><span style="background:var(--accent-yellow);color:#000;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600">${volText}/ay</span></span>
+                        <span style="text-align:center;min-width:65px"><span class="issue-badge ${compClass}" style="font-size:0.68rem;padding:2px 6px;margin:0">${compText}</span></span>
+                        <span style="text-align:right;min-width:45px;font-size:0.75rem;color:var(--text-muted)">${cpcText}</span>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>` : ''}
         ${impactHtml}
         <div class="modal-section">
             <div class="modal-section-title">

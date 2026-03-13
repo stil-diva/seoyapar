@@ -1,23 +1,24 @@
 /**
- * SEOYapar - Google Ads Keyword Planner Proxy
- * Cloudflare Worker - API anahtarlarını güvenli tutar
+ * SEOYapar - DataForSEO API Proxy
+ * Cloudflare Worker - API credentials'ları güvenli tutar
  * 
- * Environment Variables (Cloudflare Dashboard → Workers → Settings → Variables):
- *   GOOGLE_CLIENT_ID       - OAuth2 Client ID
- *   GOOGLE_CLIENT_SECRET   - OAuth2 Client Secret
- *   GOOGLE_REFRESH_TOKEN   - OAuth2 Refresh Token
- *   GOOGLE_DEVELOPER_TOKEN - Google Ads Developer Token
- *   GOOGLE_CUSTOMER_ID     - Google Ads Customer ID (10 haneli, tiresiz)
- *   ALLOWED_ORIGIN         - İzin verilen domain (ör: https://seoyapar.com)
+ * Endpoints:
+ *   { keywords: [...] }           → Keyword Search Volume (Google Ads data)
+ *   { action: "health" }          → Health check + balance
+ *   { action: "serp", query: "" } → Google SERP results for competitor analysis
+ * 
+ * Environment Variables:
+ *   DATAFORSEO_LOGIN    - DataForSEO API login (email)
+ *   DATAFORSEO_PASSWORD - DataForSEO API password
+ *   ALLOWED_ORIGIN      - İzin verilen domain
  */
 
-const GOOGLE_ADS_API_VERSION = 'v16';
-const TURKISH_LANGUAGE_ID = '1037';  // languageConstants/1037
-const TURKEY_GEO_ID = '2792';        // geoTargetConstants/2792
+const DATAFORSEO_API = 'https://api.dataforseo.com/v3';
+const TURKEY_LOCATION_CODE = 2792;
+const TURKISH_LANGUAGE_CODE = 'tr';
 
 export default {
     async fetch(request, env) {
-        // CORS headers
         const corsHeaders = {
             'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
             'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -25,7 +26,6 @@ export default {
             'Access-Control-Max-Age': '86400',
         };
 
-        // Handle preflight
         if (request.method === 'OPTIONS') {
             return new Response(null, { headers: corsHeaders });
         }
@@ -36,60 +36,53 @@ export default {
 
         try {
             const body = await request.json();
-            const { keywords, action } = body;
+            const { keywords, action, query } = body;
 
+            const authHeader = 'Basic ' + btoa(`${env.DATAFORSEO_LOGIN}:${env.DATAFORSEO_PASSWORD}`);
+
+            // ===== HEALTH CHECK =====
             if (action === 'health') {
-                return jsonResponse({
-                    status: 'ok',
-                    hasCredentials: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_DEVELOPER_TOKEN),
-                    version: '2.0',
-                    apiVersion: GOOGLE_ADS_API_VERSION
-                }, 200, corsHeaders);
+                if (env.DATAFORSEO_LOGIN && env.DATAFORSEO_PASSWORD) {
+                    try {
+                        const resp = await fetch(`${DATAFORSEO_API}/appendix/user_data`, {
+                            method: 'GET',
+                            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' }
+                        });
+                        const data = await resp.json();
+                        const balance = data?.tasks?.[0]?.result?.[0]?.money?.balance ?? -1;
+                        return jsonResponse({
+                            status: 'ok', hasCredentials: true, credits: balance,
+                            version: '3.0', provider: 'dataforseo'
+                        }, 200, corsHeaders);
+                    } catch (e) {
+                        return jsonResponse({
+                            status: 'ok', hasCredentials: true, credits: -1,
+                            version: '3.0', provider: 'dataforseo'
+                        }, 200, corsHeaders);
+                    }
+                }
+                return jsonResponse({ status: 'ok', hasCredentials: false, version: '3.0', provider: 'dataforseo' }, 200, corsHeaders);
             }
 
+            if (!env.DATAFORSEO_LOGIN || !env.DATAFORSEO_PASSWORD) {
+                return jsonResponse({ error: 'API credentials not configured' }, 401, corsHeaders);
+            }
+
+            // ===== SERP ANALYSIS (Competitor Research) =====
+            if (action === 'serp' && query) {
+                const serpData = await getSerpResults(query, authHeader);
+                return jsonResponse({ success: true, data: serpData, source: 'dataforseo' }, 200, corsHeaders);
+            }
+
+            // ===== KEYWORD SEARCH VOLUME =====
             if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
                 return jsonResponse({ error: 'keywords array required' }, 400, corsHeaders);
             }
 
-            // Rate limit: max 50 keywords per request
-            const kwList = keywords.slice(0, 50);
-
-            // Step 1: Get fresh access token
-            const accessToken = await getAccessToken(env);
-            if (!accessToken) {
-                return jsonResponse({ error: 'OAuth token failed. Check credentials.' }, 401, corsHeaders);
-            }
-
-            // Step 2: Try generateKeywordHistoricalMetrics first (works better with test tokens)
-            let volumeData = null;
-            let apiMethod = '';
-
-            try {
-                volumeData = await getKeywordHistoricalMetrics(kwList, accessToken, env);
-                apiMethod = 'historicalMetrics';
-            } catch (e1) {
-                console.warn('Historical metrics failed, trying keyword ideas:', e1.message);
-                try {
-                    volumeData = await getKeywordIdeas(kwList, accessToken, env);
-                    apiMethod = 'keywordIdeas';
-                } catch (e2) {
-                    console.error('Both API methods failed:', e2.message);
-                    return jsonResponse({
-                        error: `API failed: ${e1.message} / ${e2.message}`,
-                        debugInfo: {
-                            method1Error: e1.message,
-                            method2Error: e2.message,
-                            customerId: env.GOOGLE_CUSTOMER_ID
-                        }
-                    }, 500, corsHeaders);
-                }
-            }
-
+            const kwList = keywords.slice(0, 1000);
+            const volumeData = await getKeywordVolumes(kwList, authHeader);
             return jsonResponse({
-                success: true,
-                data: volumeData,
-                source: 'google_keyword_planner',
-                method: apiMethod,
+                success: true, data: volumeData, source: 'dataforseo',
                 timestamp: new Date().toISOString()
             }, 200, corsHeaders);
 
@@ -99,177 +92,108 @@ export default {
     }
 };
 
-// ===== OAuth2 Token Refresh =====
-async function getAccessToken(env) {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            client_id: env.GOOGLE_CLIENT_ID,
-            client_secret: env.GOOGLE_CLIENT_SECRET,
-            refresh_token: env.GOOGLE_REFRESH_TOKEN,
-            grant_type: 'refresh_token'
-        })
-    });
+// ===== Keyword Search Volume =====
+async function getKeywordVolumes(keywords, authHeader) {
+    const requestBody = [{
+        location_code: TURKEY_LOCATION_CODE,
+        language_code: TURKISH_LANGUAGE_CODE,
+        keywords: keywords
+    }];
 
-    if (!response.ok) {
-        console.error('Token refresh failed:', await response.text());
-        return null;
-    }
+    const response = await fetch(
+        `${DATAFORSEO_API}/keywords_data/google_ads/search_volume/live`,
+        {
+            method: 'POST',
+            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        }
+    );
 
-    const data = await response.json();
-    return data.access_token;
-}
-
-// ===== Method 1: generateKeywordHistoricalMetrics =====
-// This method works with specific keywords (exact match)
-async function getKeywordHistoricalMetrics(keywords, accessToken, env) {
-    const customerId = env.GOOGLE_CUSTOMER_ID.replace(/-/g, '');
-    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:generateKeywordHistoricalMetrics`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'developer-token': env.GOOGLE_DEVELOPER_TOKEN,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            keywords: keywords,
-            language: `languageConstants/${TURKISH_LANGUAGE_ID}`,
-            geoTargetConstants: [`geoTargetConstants/${TURKEY_GEO_ID}`],
-            keywordPlanNetwork: 'GOOGLE_SEARCH'
-        })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Historical metrics API ${response.status}: ${errorText.substring(0, 200)}`);
-    }
+    if (!response.ok) throw new Error(`DataForSEO API error: ${response.status}`);
 
     const data = await response.json();
-    return parseHistoricalResults(data, keywords);
-}
-
-// ===== Method 2: generateKeywordIdeas =====
-async function getKeywordIdeas(keywords, accessToken, env) {
-    const customerId = env.GOOGLE_CUSTOMER_ID.replace(/-/g, '');
-    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:generateKeywordIdeas`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'developer-token': env.GOOGLE_DEVELOPER_TOKEN,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            language: `languageConstants/${TURKISH_LANGUAGE_ID}`,
-            geoTargetConstants: [`geoTargetConstants/${TURKEY_GEO_ID}`],
-            includeAdultKeywords: false,
-            keywordSeed: {
-                keywords: keywords
-            },
-            keywordPlanNetwork: 'GOOGLE_SEARCH'
-        })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Keyword Ideas API ${response.status}: ${errorText.substring(0, 200)}`);
-    }
-
-    const data = await response.json();
-    return parseIdeaResults(data, keywords);
-}
-
-// ===== Parse Historical Metrics Results =====
-function parseHistoricalResults(data, originalKeywords) {
     const results = {};
 
-    if (data.results) {
-        for (const result of data.results) {
-            const keyword = result.text || '';
-            const metrics = result.keywordMetrics || {};
-
+    if (data.tasks?.[0]?.status_code === 20000 && data.tasks[0].result) {
+        for (const item of data.tasks[0].result) {
+            const keyword = item.keyword || '';
             results[keyword.toLowerCase()] = {
-                keyword: keyword,
-                avgMonthlySearches: metrics.avgMonthlySearches || 0,
-                competition: metrics.competition || 'UNSPECIFIED',
-                competitionIndex: metrics.competitionIndex || 0,
-                lowTopOfPageBidMicros: metrics.lowTopOfPageBidMicros
-                    ? parseInt(metrics.lowTopOfPageBidMicros) / 1000000
-                    : 0,
-                highTopOfPageBidMicros: metrics.highTopOfPageBidMicros
-                    ? parseInt(metrics.highTopOfPageBidMicros) / 1000000
-                    : 0,
-                monthlySearchVolumes: (metrics.monthlySearchVolumes || []).map(m => ({
-                    month: m.month,
-                    year: m.year,
-                    searches: m.monthlySearches || 0
+                keyword,
+                avgMonthlySearches: item.search_volume || 0,
+                competition: item.competition || 'UNSPECIFIED',
+                competitionIndex: item.competition_index || 0,
+                cpc: item.cpc || 0,
+                lowTopOfPageBid: item.low_top_of_page_bid || 0,
+                highTopOfPageBid: item.high_top_of_page_bid || 0,
+                monthlySearchVolumes: (item.monthly_searches || []).map(m => ({
+                    month: m.month, year: m.year, searches: m.search_volume || 0
                 }))
             };
         }
     }
 
-    // Fill missing keywords with zeros
-    for (const kw of originalKeywords) {
+    for (const kw of keywords) {
         if (!results[kw.toLowerCase()]) {
-            results[kw.toLowerCase()] = emptyResult(kw);
+            results[kw.toLowerCase()] = {
+                keyword: kw, avgMonthlySearches: 0, competition: 'UNSPECIFIED',
+                competitionIndex: 0, cpc: 0, lowTopOfPageBid: 0, highTopOfPageBid: 0,
+                monthlySearchVolumes: []
+            };
         }
     }
 
     return results;
 }
 
-// ===== Parse Keyword Ideas Results =====
-function parseIdeaResults(data, originalKeywords) {
-    const results = {};
+// ===== Google SERP Results (for competitor analysis) =====
+async function getSerpResults(query, authHeader) {
+    const requestBody = [{
+        keyword: query,
+        location_code: TURKEY_LOCATION_CODE,
+        language_code: TURKISH_LANGUAGE_CODE,
+        device: 'desktop',
+        os: 'windows',
+        depth: 30
+    }];
 
-    if (data.results) {
-        for (const result of data.results) {
-            const keyword = result.text;
-            const metrics = result.keywordIdeaMetrics || {};
-
-            results[keyword.toLowerCase()] = {
-                keyword: keyword,
-                avgMonthlySearches: metrics.avgMonthlySearches || 0,
-                competition: metrics.competition || 'UNSPECIFIED',
-                competitionIndex: metrics.competitionIndex || 0,
-                lowTopOfPageBidMicros: metrics.lowTopOfPageBidMicros
-                    ? parseInt(metrics.lowTopOfPageBidMicros) / 1000000
-                    : 0,
-                highTopOfPageBidMicros: metrics.highTopOfPageBidMicros
-                    ? parseInt(metrics.highTopOfPageBidMicros) / 1000000
-                    : 0,
-                monthlySearchVolumes: (metrics.monthlySearchVolumes || []).map(m => ({
-                    month: m.month,
-                    year: m.year,
-                    searches: m.monthlySearches || 0
-                }))
-            };
+    const response = await fetch(
+        `${DATAFORSEO_API}/serp/google/organic/live/regular`,
+        {
+            method: 'POST',
+            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
         }
-    }
+    );
 
-    for (const kw of originalKeywords) {
-        if (!results[kw.toLowerCase()]) {
-            results[kw.toLowerCase()] = emptyResult(kw);
+    if (!response.ok) throw new Error(`DataForSEO SERP error: ${response.status}`);
+
+    const data = await response.json();
+    const results = { query, competitors: [], marketplaceResults: [] };
+
+    if (data.tasks?.[0]?.status_code === 20000 && data.tasks[0].result?.[0]?.items) {
+        const items = data.tasks[0].result[0].items;
+
+        for (const item of items) {
+            if (item.type !== 'organic') continue;
+
+            const domain = item.domain || '';
+            const title = item.title || '';
+            const url = item.url || '';
+            const position = item.rank_absolute || 0;
+            const description = item.description || '';
+
+            const isMarketplace = /trendyol|hepsiburada|n11|gittigidiyor|amazon\.com\.tr|morhipo|boyner|lcwaikiki|defacto|koton/.test(domain);
+
+            const entry = { title, domain, url, position, description };
+
+            if (isMarketplace) {
+                results.marketplaceResults.push(entry);
+            }
+            results.competitors.push(entry);
         }
     }
 
     return results;
-}
-
-function emptyResult(kw) {
-    return {
-        keyword: kw,
-        avgMonthlySearches: 0,
-        competition: 'UNSPECIFIED',
-        competitionIndex: 0,
-        lowTopOfPageBidMicros: 0,
-        highTopOfPageBidMicros: 0,
-        monthlySearchVolumes: []
-    };
 }
 
 function jsonResponse(data, status, corsHeaders) {

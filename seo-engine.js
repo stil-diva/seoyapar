@@ -733,24 +733,31 @@ function generateOverallStats(results) {
     };
 }
 
-// ===== GOOGLE ADS KEYWORD PLANNER API =====
+// ===== DATAFORSEO API =====
 // Connects to Cloudflare Worker proxy for real search volumes
+// Uses DataForSEO (dataforseo.com) as data source
 
 // Config: Worker URL (set via Settings or localStorage)
 let KEYWORD_API_URL = localStorage.getItem('seo_keyword_api_url') || '';
 let _keywordApiAvailable = null; // null = unchecked, true/false = checked
+let _keywordApiCredits = null; // remaining balance
 
 function setKeywordApiUrl(url) {
     KEYWORD_API_URL = url;
     localStorage.setItem('seo_keyword_api_url', url);
-    _keywordApiAvailable = null; // reset check
+    _keywordApiAvailable = null;
+    _keywordApiCredits = null;
 }
 
 function getKeywordApiUrl() {
     return KEYWORD_API_URL;
 }
 
-// Check if the Keyword API is available
+function getKeywordApiCredits() {
+    return _keywordApiCredits;
+}
+
+// Check if the DataForSEO API is available
 async function checkKeywordApi() {
     if (!KEYWORD_API_URL) { _keywordApiAvailable = false; return false; }
     try {
@@ -761,23 +768,26 @@ async function checkKeywordApi() {
         });
         const data = await resp.json();
         _keywordApiAvailable = data.status === 'ok' && data.hasCredentials;
+        if (data.credits !== undefined && data.credits >= 0) {
+            _keywordApiCredits = data.credits;
+        }
         return _keywordApiAvailable;
     } catch (e) {
-        console.warn('Keyword API health check failed:', e);
+        console.warn('DataForSEO API health check failed:', e);
         _keywordApiAvailable = false;
         return false;
     }
 }
 
-// Fetch real search volumes from Google Ads Keyword Planner via proxy
+// Fetch real search volumes from DataForSEO via proxy
 async function fetchKeywordVolumes(keywords) {
     if (!KEYWORD_API_URL || !_keywordApiAvailable) return null;
 
     try {
-        // Batch: max 50 per request
+        // Batch: max 1000 per request (DataForSEO limit)
         const batches = [];
-        for (let i = 0; i < keywords.length; i += 50) {
-            batches.push(keywords.slice(i, i + 50));
+        for (let i = 0; i < keywords.length; i += 1000) {
+            batches.push(keywords.slice(i, i + 1000));
         }
 
         const allResults = {};
@@ -794,7 +804,7 @@ async function fetchKeywordVolumes(keywords) {
         }
         return allResults;
     } catch (e) {
-        console.warn('Keyword volume fetch failed:', e);
+        console.warn('DataForSEO volume fetch failed:', e);
         return null;
     }
 }
@@ -1041,11 +1051,11 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
     const keywordPopularity = {};
     let dataSource = 'google_autocomplete';
 
-    // Step 2: Try Google Ads Keyword Planner API first
+    // Step 2: Try DataForSEO API first
     const apiAvailable = await checkKeywordApi();
 
     if (apiAvailable) {
-        dataSource = 'google_keyword_planner';
+        dataSource = 'dataforseo';
         try {
             const volumeData = await fetchKeywordVolumes(keywordsArray);
             if (volumeData) {
@@ -1055,15 +1065,17 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
                         monthlyVolume: vol.avgMonthlySearches || 0,
                         competition: vol.competition || 'UNSPECIFIED',
                         competitionIndex: vol.competitionIndex || 0,
-                        cpcLow: vol.lowTopOfPageBidMicros || 0,
-                        cpcHigh: vol.highTopOfPageBidMicros || 0,
+                        cpc: vol.cpc || 0,
+                        lowTopOfPageBid: vol.lowTopOfPageBid || 0,
+                        highTopOfPageBid: vol.highTopOfPageBid || 0,
                         isGooglePopular: (vol.avgMonthlySearches || 0) > 0,
-                        dataSource: 'keyword_planner'
+                        trend: vol.monthlySearchVolumes || [],
+                        dataSource: 'dataforseo'
                     };
                 }
             }
         } catch (e) {
-            console.warn('Keyword Planner failed, falling back to Autocomplete:', e);
+            console.warn('DataForSEO failed, falling back to Autocomplete:', e);
             dataSource = 'google_autocomplete';
         }
     }
@@ -1161,5 +1173,235 @@ async function researchAllProducts(products, analysisResults, progressCallback) 
         }
     }
 
+    // ==========================================
+    // PHASE 3: Market-Driven Keyword Discovery
+    // Use Google Autocomplete (FREE) to find related keywords,
+    // then get real volumes from DataForSEO ($0.01/batch)
+    // ==========================================
+    if (apiAvailable && KEYWORD_API_URL) {
+        // Step 1: Determine category for each product
+        const categoryQueries = new Set();
+        for (let i = 0; i < total; i++) {
+            let cat = '';
+            for (const [c, data] of Object.entries(CATEGORY_MAPPINGS)) {
+                if (data.aliases.some(a => (products[i].name || '').toLowerCase().includes(a))) {
+                    cat = c; break;
+                }
+            }
+            if (!cat) {
+                for (const [c, data] of Object.entries(CATEGORY_MAPPINGS)) {
+                    if (data.aliases.some(a => (products[i].description || '').toLowerCase().includes(a))) {
+                        cat = c; break;
+                    }
+                }
+            }
+            analysisResults[i]._category = cat;
+            if (cat) {
+                categoryQueries.add(cat);
+                const descLow = (products[i].description || '').toLowerCase();
+                if (descLow.includes('büyük beden') || descLow.includes('battal')) {
+                    categoryQueries.add('büyük beden ' + cat);
+                }
+                const gender = descLow.includes('kadın') ? 'kadın' : descLow.includes('erkek') ? 'erkek' : '';
+                if (gender) categoryQueries.add(gender + ' ' + cat);
+            }
+        }
+
+        // Step 2: Use Google Autocomplete (FREE) to discover related keywords
+        const uniqueCatQueries = [...categoryQueries];
+        const allDiscoveredKeywords = new Set();
+        const autocompleteByCat = {};
+
+        try {
+            const allAcQueries = [];
+            for (const cat of uniqueCatQueries) {
+                allAcQueries.push(cat);
+                const prefixes = ['en iyi', 'ucuz', 'online', 'kadın', 'erkek', 'büyük beden'];
+                for (const p of prefixes) {
+                    if (!cat.includes(p.split(' ')[0])) {
+                        allAcQueries.push(`${p} ${cat}`);
+                    }
+                }
+            }
+            const uniqueAcQueries = [...new Set(allAcQueries)];
+            const acResults = await batchAutocomplete(uniqueAcQueries, () => {});
+
+            for (const cat of uniqueCatQueries) {
+                autocompleteByCat[cat] = [];
+            }
+            for (const [query, suggestions] of Object.entries(acResults)) {
+                for (const cat of uniqueCatQueries) {
+                    if (query.includes(cat) || cat.includes(query.split(' ').pop())) {
+                        if (!autocompleteByCat[cat]) autocompleteByCat[cat] = [];
+                        autocompleteByCat[cat].push(...suggestions);
+                    }
+                }
+                suggestions.forEach(s => allDiscoveredKeywords.add(s.toLowerCase()));
+            }
+        } catch (e) {
+            console.warn('Autocomplete discovery phase failed:', e);
+        }
+
+        // Step 3: Get real search volumes for discovered keywords
+        const discoveredArray = [...allDiscoveredKeywords].slice(0, 500);
+        let discoveredVolumes = {};
+        if (discoveredArray.length > 0) {
+            try {
+                discoveredVolumes = await fetchKeywordVolumes(discoveredArray) || {};
+            } catch (e) {
+                console.warn('Volume fetch for discovered keywords failed:', e);
+            }
+        }
+
+        // Step 4: Distribute enriched keyword ideas to each product
+        for (let i = 0; i < total; i++) {
+            const cat = analysisResults[i]._category;
+            if (!cat) continue;
+
+            const nameLow = (products[i].name || '').toLowerCase();
+            const suggestions = autocompleteByCat[cat] || [];
+            const seen = new Set();
+            const enrichedIdeas = [];
+
+            for (const suggestion of suggestions) {
+                const kw = suggestion.toLowerCase();
+                if (seen.has(kw)) continue;
+                seen.add(kw);
+
+                const volData = discoveredVolumes[kw] || {};
+                const words = kw.split(' ').filter(w => w.length >= 3);
+                const inTitle = words.length > 0 && words.every(w => nameLow.includes(w));
+
+                enrichedIdeas.push({
+                    keyword: suggestion,
+                    searchVolume: volData.avgMonthlySearches || 0,
+                    competition: volData.competition || 'UNSPECIFIED',
+                    competitionIndex: volData.competitionIndex || 0,
+                    cpc: volData.cpc || 0,
+                    inTitle,
+                    relevance: kw.includes(cat) ? 'high' : 'medium'
+                });
+            }
+
+            enrichedIdeas.sort((a, b) => {
+                if (a.inTitle !== b.inTitle) return a.inTitle ? 1 : -1;
+                return b.searchVolume - a.searchVolume;
+            });
+
+            analysisResults[i].relatedKeywords = enrichedIdeas.slice(0, 30);
+            analysisResults[i].missingPopularKeywords = enrichedIdeas
+                .filter(k => !k.inTitle && k.searchVolume > 0)
+                .slice(0, 20);
+        }
+    }
+
+    // ==========================================
+    // PHASE 4: SERP Competitor Analysis
+    // See who ranks for similar search queries
+    // ==========================================
+    if (apiAvailable && KEYWORD_API_URL) {
+        const serpQueries = new Set();
+        for (let i = 0; i < total; i++) {
+            const cat = analysisResults[i]._category;
+            if (cat) serpQueries.add(cat);
+        }
+
+        const serpResultsMap = {};
+        const uniqueSerpQueries = [...serpQueries].slice(0, 5);
+
+        try {
+            for (const q of uniqueSerpQueries) {
+                try {
+                    const resp = await fetch(KEYWORD_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'serp', query: q })
+                    });
+                    const data = await resp.json();
+                    if (data.success && data.data) {
+                        serpResultsMap[q] = data.data;
+                    }
+                } catch (e) {
+                    console.warn('SERP fetch failed for:', q, e);
+                }
+            }
+        } catch (e) {
+            console.warn('SERP phase failed:', e);
+        }
+
+        const competitorsByCategory = {};
+        for (const [cat, serpData] of Object.entries(serpResultsMap)) {
+            const stores = {};
+            for (const result of (serpData.marketplaceResults || [])) {
+                const storeName = extractStoreName(result.domain, result.url, result.title);
+                if (!stores[storeName]) {
+                    stores[storeName] = { name: storeName, domain: result.domain, count: 0, positions: [], titles: [] };
+                }
+                stores[storeName].count++;
+                stores[storeName].positions.push(result.position);
+                stores[storeName].titles.push(result.title);
+            }
+            competitorsByCategory[cat] = Object.values(stores)
+                .sort((a, b) => a.positions[0] - b.positions[0])
+                .slice(0, 10);
+        }
+
+        for (let i = 0; i < total; i++) {
+            const cat = analysisResults[i]._category;
+            if (cat && serpResultsMap[cat]) {
+                analysisResults[i].serpResults = serpResultsMap[cat];
+                analysisResults[i].competitors = competitorsByCategory[cat] || [];
+
+                const competitorTitles = (serpResultsMap[cat].marketplaceResults || []).map(r => r.title.toLowerCase());
+                const competitorKeywords = {};
+                for (const title of competitorTitles) {
+                    const words = title.split(/[\s,;.!?()\/\[\]]+/).filter(w => w.length >= 3);
+                    for (const word of words) {
+                        if (!competitorKeywords[word]) competitorKeywords[word] = 0;
+                        competitorKeywords[word]++;
+                    }
+                }
+                const userWords = new Set((products[i].name || '').toLowerCase().split(/[\s,;.!?()\/\[\]]+/));
+                const missingFromCompetitors = Object.entries(competitorKeywords)
+                    .filter(([word, count]) => count >= 2 && !userWords.has(word) && !isStopWord(word))
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10)
+                    .map(([word, count]) => ({ word, usedByCount: count, totalCompetitors: competitorTitles.length }));
+
+                analysisResults[i].competitorKeywordGaps = missingFromCompetitors;
+            }
+            delete analysisResults[i]._category;
+        }
+    }
+
     return analysisResults;
+}
+
+// Helper: extract store name from marketplace URL/title
+function extractStoreName(domain, url, title) {
+    if (domain.includes('trendyol')) {
+        const match = url.match(/\/sr\?mid=([^&]+)/) || url.match(/\/magaza\/([^?/]+)/);
+        if (match) return match[1].replace(/-/g, ' ');
+        const brandMatch = title.match(/^([^-–]+)/);
+        if (brandMatch) return brandMatch[1].trim();
+        return 'Trendyol Mağaza';
+    }
+    if (domain.includes('hepsiburada')) {
+        const match = url.match(/\/magaza\/([^?/]+)/);
+        if (match) return match[1].replace(/-/g, ' ');
+        return 'Hepsiburada Mağaza';
+    }
+    if (domain.includes('n11')) return 'N11 Mağaza';
+    return domain.replace(/^www\./, '').replace(/\.com\.tr$|\.com$/, '');
+}
+
+function isStopWord(word) {
+    const stops = new Set([
+        've', 'ile', 'için', 'bir', 'bu', 'da', 'de', 'den', 'dan', 'çok',
+        'var', 'yok', 'olan', 'gibi', 'kadar', 'her', 'daha', 'çok', 'en',
+        'tüm', 'tum', 'ise', 'veya', 'ya', 'hem', 'ama', 'fakat', 'sadece',
+        'adet', 'stok', 'yeni', 'özel', 'indirim', 'fırsat', 'kampanya',
+        'the', 'and', 'for', 'with', 'new', 'top', 'best'
+    ]);
+    return stops.has(word);
 }
