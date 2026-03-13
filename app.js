@@ -16,13 +16,37 @@ let _cancelAnalysis = false;
 
 // ===== API Settings Modal =====
 const apiModal = $('apiSettingsModal');
+
+function updateToggleUI(enabled) {
+    const knob = $('apiToggleKnob');
+    const label = $('apiToggleLabel');
+    const track = knob.previousElementSibling;
+    if (enabled) {
+        knob.style.left = '22px';
+        track.style.background = 'var(--accent-green)';
+        label.textContent = 'DataForSEO Aktif';
+        label.style.color = 'var(--accent-green)';
+    } else {
+        knob.style.left = '2px';
+        track.style.background = 'var(--border)';
+        label.textContent = 'DataForSEO Kapalı';
+        label.style.color = 'var(--text-muted)';
+    }
+}
+
 $('apiSettingsBtn').addEventListener('click', () => {
     $('apiUrlInput').value = getKeywordApiUrl();
+    $('apiToggle').checked = isKeywordApiEnabled();
+    updateToggleUI(isKeywordApiEnabled());
     apiModal.style.display = 'flex';
     $('apiStatus').style.display = 'none';
 });
 $('closeApiSettings').addEventListener('click', () => { apiModal.style.display = 'none'; });
 apiModal.addEventListener('click', e => { if (e.target === apiModal) apiModal.style.display = 'none'; });
+
+$('apiToggle').addEventListener('change', function() {
+    updateToggleUI(this.checked);
+});
 
 $('testApiBtn').addEventListener('click', async () => {
     const url = $('apiUrlInput').value.trim();
@@ -67,12 +91,20 @@ $('testApiBtn').addEventListener('click', async () => {
 
 $('saveApiBtn').addEventListener('click', () => {
     const url = $('apiUrlInput').value.trim();
+    const enabled = $('apiToggle').checked;
     setKeywordApiUrl(url);
+    setKeywordApiEnabled(enabled);
     const statusEl = $('apiStatus');
     statusEl.style.display = 'block';
     statusEl.style.background = 'rgba(16,185,129,0.15)';
     statusEl.style.color = '#10b981';
-    statusEl.textContent = url ? '💾 Kaydedildi! Sonraki analizde kullanılacak.' : '💾 API devre dışı bırakıldı.';
+    if (url && enabled) {
+        statusEl.textContent = '💾 Kaydedildi! DataForSEO aktif — sonraki analizde kullanılacak.';
+    } else if (url && !enabled) {
+        statusEl.textContent = '💾 Kaydedildi! DataForSEO kapalı — ücretsiz mod aktif.';
+    } else {
+        statusEl.textContent = '💾 Kaydedildi! Ücretsiz Google Autocomplete modu aktif.';
+    }
     setTimeout(() => { apiModal.style.display = 'none'; }, 1500);
 });
 

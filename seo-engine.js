@@ -741,6 +741,7 @@ function generateOverallStats(results) {
 let KEYWORD_API_URL = localStorage.getItem('seo_keyword_api_url') || '';
 let _keywordApiAvailable = null; // null = unchecked, true/false = checked
 let _keywordApiCredits = null; // remaining balance
+let _keywordApiEnabled = localStorage.getItem('seo_keyword_api_enabled') !== 'false'; // default true
 
 function setKeywordApiUrl(url) {
     KEYWORD_API_URL = url;
@@ -757,8 +758,19 @@ function getKeywordApiCredits() {
     return _keywordApiCredits;
 }
 
+function setKeywordApiEnabled(enabled) {
+    _keywordApiEnabled = enabled;
+    localStorage.setItem('seo_keyword_api_enabled', enabled ? 'true' : 'false');
+    _keywordApiAvailable = null; // reset check
+}
+
+function isKeywordApiEnabled() {
+    return _keywordApiEnabled;
+}
+
 // Check if the DataForSEO API is available
 async function checkKeywordApi() {
+    if (!_keywordApiEnabled) { _keywordApiAvailable = false; return false; }
     if (!KEYWORD_API_URL) { _keywordApiAvailable = false; return false; }
     try {
         const resp = await fetch(KEYWORD_API_URL, {
